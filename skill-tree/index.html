@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Dev Skill Tree — your developer roadmap as an unlockable dependency graph in a terminal. Pick a project, unlock skills, share your build." />
+<meta name="theme-color" content="#0a0a0a" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Dev Skill Tree — level up your dev path" />
+<meta property="og:description" content="A developer roadmap rendered as a console dependency graph. Pick your project, unlock skills, share your build." />
+<title>Dev Skill Tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --panel: #121212;
+    --panel-2: #161616;
+    --yellow: #ffe600;
+    --gold: #ffb800;
+    --line: rgba(255, 230, 0, 0.22);
+    --text: #ececec;
+    --muted: #8c8c8c;
+    --dim: #565b6b;
+    --grid: rgba(255, 255, 255, 0.035);
+    --font: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { font-family: var(--font); color: var(--text); background: var(--bg); overflow-x: hidden; }
+  ::selection { background: var(--yellow); color: #000; }
+  a { color: var(--yellow); }
+
+  /* ---- TV power-on animation ---- */
+  #tvon { position: fixed; inset: 0; z-index: 9999; pointer-events: none; }
+  #tvon.done { display: none; }
+  .tvon-half { position: absolute; left: 0; width: 100%; height: 50.5%; background: #000; }
+  .tvon-top { top: 0; animation: tvTop 1.1s cubic-bezier(.45,0,.2,1) 0.45s forwards; }
+  .tvon-bot { bottom: 0; animation: tvBot 1.1s cubic-bezier(.45,0,.2,1) 0.45s forwards; }
+  .tvon-glow { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 58vw; height: 130px; pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(255,250,240,0.6) 0%, rgba(255,238,180,0.26) 15%, rgba(255,224,130,0.08) 42%, transparent 72%);
+    filter: blur(3px); opacity: 0; animation: tvGlow 0.5s ease-out forwards; }
+  .tvon-line { position: absolute; top: 50%; left: 50%; height: 6px; width: 0; transform: translate(-50%,-50%);
+    background: #fff; box-shadow: 0 0 6px 1px rgba(255,255,255,0.9), 0 0 16px 2px rgba(255,244,190,0.6);
+    clip-path: polygon(0 50%, 22% 0, 78% 0, 100% 50%, 78% 100%, 22% 100%);
+    animation: tvLine 0.5s ease-out forwards; }
+  @keyframes tvLine { 0% { width:0; opacity:0; } 10% { width:2%; opacity:1; } 62% { width:100%; opacity:1; } 100% { width:100%; opacity:0; } }
+  @keyframes tvGlow { 0% { opacity:0; transform: translate(-50%,-50%) scaleX(0.12); } 20% { opacity:1; } 62% { opacity:1; transform: translate(-50%,-50%) scaleX(1); } 100% { opacity:0; transform: translate(-50%,-50%) scaleX(1); } }
+  @keyframes tvTop { to { transform: translateY(-100%); } }
+  @keyframes tvBot { to { transform: translateY(100%); } }
+  @media (prefers-reduced-motion: reduce) { #tvon { display: none; } }
+
+  .grid-bg {
+    position: fixed; inset: 0; z-index: -1;
+    background:
+      radial-gradient(900px 600px at 50% 12%, rgba(255, 230, 0, 0.06), transparent 62%),
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 28px 100%,
+      var(--bg);
+  }
+
+  /* ---- CRT / curved old-TV screen (cosmetic, never blocks clicks) ---- */
+  .crt {
+    position: fixed; inset: 0; z-index: 900; pointer-events: none;
+    overflow: hidden;
+    box-shadow: inset 0 0 200px 60px rgba(0,0,0,0.62);
+  }
+  .crt::before {   /* scanlines + faint yellow phosphor wash + flicker */
+    content: ""; position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(to bottom, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px),
+      linear-gradient(rgba(255,230,0,0.03), rgba(255,230,0,0.03));
+    opacity: 0.68; animation: crtFlicker 5s infinite steps(40);
+  }
+  .crt::after {   /* strong barrel bulge: dark curved corners + convex center sheen + glare */
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(46% 26% at 32% 5%, rgba(255,255,255,0.10), transparent 60%),
+      radial-gradient(88% 66% at 50% 46%, rgba(255,255,255,0.055), transparent 60%),
+      radial-gradient(108% 106% at 50% 50%, transparent 30%, rgba(0,0,0,0.36) 60%, rgba(0,0,0,0.72) 82%, rgba(0,0,0,0.96) 100%);
+  }
+  .scan {   /* clipping tube for the sweeping band */
+    position: fixed; inset: 0; z-index: 901; pointer-events: none; overflow: hidden;
+  }
+  .scan::before {   /* bright band, GPU-composited transform (cheap) */
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 190px;
+    background: linear-gradient(rgba(255,230,0,0), rgba(255,230,0,0.08) 44%, rgba(255,255,255,0.07) 50%, rgba(255,230,0,0.08) 56%, rgba(255,230,0,0));
+    animation: scanMove 6s linear infinite;
+  }
+  @keyframes crtFlicker { 0%,100% { opacity: 0.68; } 48% { opacity: 0.62; } 52% { opacity: 0.54; } }
+  @keyframes scanMove { 0% { transform: translateY(-190px); } 100% { transform: translateY(100vh); } }
+  @media (prefers-reduced-motion: reduce) { .crt::before { animation: none; } .scan { display: none; } }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 18px; }
+
+  /* ---------------- class select ---------------- */
+  .sel-head { text-align: center; padding: 74px 20px 6px; position: relative; }
+  .langtog { font-family: var(--font); font-size: 0.76rem; color: var(--muted); background: rgba(255,255,255,0.04); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; cursor: pointer; letter-spacing: 0.5px; white-space: nowrap; }
+  .langtog b { font-weight: 400; color: var(--muted); }
+  .langtog b.on { color: var(--yellow); font-weight: 700; }
+  .langtog:hover { border-color: var(--yellow); }
+  .sel-lang { position: absolute; top: 18px; right: 4px; }
+  .sel-head .prompt { color: var(--muted); font-size: 0.9rem; letter-spacing: 1px; }
+  .sel-head .prompt b { color: var(--yellow); font-weight: 700; }
+  .sel-head h1 {
+    font-size: clamp(1.9rem, 5vw, 2.9rem); font-weight: 700; letter-spacing: 4px;
+    margin: 14px 0 10px; text-transform: uppercase;
+    background: linear-gradient(90deg, var(--yellow), var(--gold), var(--yellow));
+    background-size: 200% auto; -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; animation: shift 5s linear infinite;
+  }
+  @keyframes shift { to { background-position: 200% center; } }
+  .sel-head p { color: var(--muted); font-size: 0.9rem; }
+  .classes { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; padding: 36px 0 50px; }
+  .ccard {
+    text-align: left; cursor: pointer; font-family: var(--font); color: var(--text);
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px; transition: all 0.2s; position: relative; overflow: hidden;
+  }
+  .ccard::before { content: ''; position: absolute; left: 0; top: 0; width: 3px; height: 100%; background: var(--yellow); opacity: 0.6; }
+  .ccard:hover { transform: translateY(-3px); border-color: var(--yellow); box-shadow: 0 12px 34px rgba(255, 230, 0, 0.12); }
+  .ccard__path { color: var(--yellow); font-size: 0.82rem; letter-spacing: 1px; }
+  .ccard__name { display: block; font-size: 1.2rem; font-weight: 700; margin: 6px 0 8px; }
+  .ccard__blurb { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; min-height: 3.8em; }
+  .ccard__meta { display: block; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--text); font-size: 0.8rem; }
+  .ccard__meta b { color: var(--yellow); }
+  .foot { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 6px 0 40px; }
+  .foot a { text-decoration: none; }
+
+  /* ---------------- terminal HUD ---------------- */
+  .term { position: sticky; top: 0; z-index: 30; background: rgba(10,10,10,0.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .term__bar { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 11px; height: 11px; border-radius: 50%; display: block; }
+  .dots i:nth-child(1){ background:#4d4d4d; } .dots i:nth-child(2){ background:#6e6e6e; } .dots i:nth-child(3){ background: var(--yellow); }
+  .term__path { color: var(--muted); font-size: 0.86rem; letter-spacing: 0.5px; }
+  .term__path b { color: var(--text); }
+  .spacer { flex: 1; }
+  .tbtn { font-family: var(--font); font-size: 0.8rem; color: var(--text); background: rgba(255,255,255,0.04); border: 1px solid var(--line); border-radius: 7px; padding: 6px 12px; cursor: pointer; transition: all 0.18s; white-space: nowrap; }
+  .tbtn:hover { border-color: var(--yellow); background: rgba(255,230,0,0.1); }
+  .tbtn.gold { color: var(--yellow); }
+  .term__status { display: flex; align-items: center; gap: 14px; padding: 9px 16px; font-size: 0.82rem; flex-wrap: wrap; }
+  .term__rank { color: var(--yellow); font-weight: 700; letter-spacing: 1px; white-space: nowrap; }
+  .pbar { width: 130px; height: 7px; background: rgba(255,255,255,0.09); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .pbar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--gold), var(--yellow)); transition: width 0.4s; }
+  .term__stat { color: var(--muted); white-space: nowrap; }
+  .term__stat b { color: var(--text); }
+
+  .tree-hint { text-align: center; color: var(--muted); font-size: 0.82rem; padding: 14px 16px 0; }
+  .tree-hint b { color: var(--yellow); }
+
+  /* ---------------- graph canvas ---------------- */
+  .tree-scroll { width: 100%; overflow: auto; padding: 16px 0 60px; }
+  .canvas { position: relative; margin: 0 auto; }
+  .traces { position: absolute; inset: 0; pointer-events: none; }
+  .trace { fill: none; stroke: rgba(150,160,190,0.18); stroke-width: 1.6; stroke-linejoin: round; transition: stroke 0.3s, stroke-width 0.3s; }
+  .trace.lit { stroke: var(--yellow); stroke-width: 2; filter: url(#glow); }
+
+  .card {
+    position: absolute; width: 172px; height: 52px; transform: translateX(-50%);
+    display: grid; grid-template-columns: auto 1fr; column-gap: 9px; align-content: center;
+    padding: 8px 12px; border-radius: 9px; cursor: pointer; font-family: var(--font);
+    background: var(--panel); border: 1px solid rgba(255,255,255,0.12); transition: all 0.18s; text-align: left;
+  }
+  .card .tag { grid-row: 1 / 3; align-self: center; font-size: 0.9rem; color: var(--dim); }
+  .card .tag::before { content: "[×]"; }
+  .card .nm { grid-column: 2; font-size: 0.86rem; font-weight: 700; color: var(--muted); line-height: 1.2; }
+  .card .hrs { grid-column: 2; font-size: 0.72rem; color: var(--dim); margin-top: 2px; }
+
+  .card.locked { border-style: dashed; }
+  .card.available { border-color: var(--line); background: var(--panel-2); box-shadow: 0 0 0 rgba(255,230,0,0); animation: avail 2.4s ease-in-out infinite; }
+  .card.available .tag { color: var(--yellow); }
+  .card.available .tag::before { content: "[»]"; }
+  .card.available .nm { color: var(--text); }
+  .card.unlocked { border-color: var(--yellow); background: linear-gradient(180deg, rgba(255,230,0,0.1), rgba(255,230,0,0.03)); }
+  .card.unlocked .tag { color: var(--yellow); }
+  .card.unlocked .tag::before { content: "[✓]"; }
+  .card.unlocked .nm { color: #fff4cf; }
+  .card.unlocked .hrs { color: var(--gold); }
+  .card:hover { border-color: var(--yellow); transform: translateX(-50%) translateY(-2px); }
+  .card.selected { border-color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,0.4); }
+  .card.flash { animation: flash 0.5s; }
+
+  @keyframes avail { 0%,100% { box-shadow: 0 0 0 rgba(255,230,0,0); } 50% { box-shadow: 0 0 16px rgba(255,230,0,0.18); } }
+  @keyframes flash { 0% { box-shadow: 0 0 0 rgba(255,230,0,0.7); } 100% { box-shadow: 0 0 26px rgba(255,230,0,0); } }
+
+  /* ---------------- panel ---------------- */
+  .panel {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%) translateY(150%);
+    width: min(540px, calc(100% - 28px));
+    max-height: calc(100vh - 36px); max-height: calc(100dvh - 36px); overflow-y: auto; overscroll-behavior: contain;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 20px; z-index: 40; transition: transform 0.3s cubic-bezier(.2,.7,.3,1);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+  }
+  .panel.show { transform: translateX(-50%) translateY(0); }
+  .panel__top { display: flex; align-items: baseline; gap: 10px; position: sticky; top: 0; z-index: 2; margin: -20px -20px 0; padding: 20px 20px 10px; background: var(--panel); }
+  .panel__title { font-size: 1.15rem; font-weight: 700; flex: 1; }
+  .panel__title::before { content: "> "; color: var(--yellow); }
+  .panel__badge { font-size: 0.7rem; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+  .panel__badge.b-unlocked { color: var(--yellow); }
+  .panel__badge.b-available { color: var(--gold); }
+  .panel__x { background: none; border: none; color: var(--muted); font-size: 1.3rem; cursor: pointer; line-height: 1; }
+  .panel__desc { color: var(--muted); line-height: 1.6; margin: 12px 0; font-size: 0.92rem; }
+  .panel__row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .panel__cost { color: var(--text); font-size: 0.88rem; }
+  .panel__cost b { color: var(--yellow); }
+  .panel__guide { color: var(--yellow); text-decoration: none; font-size: 0.88rem; font-weight: 500; }
+  .panel__guide:hover { text-decoration: underline; }
+  .panel__actions { display: flex; gap: 10px; margin-top: 16px; }
+  .act { flex: 1; border: none; border-radius: 9px; padding: 11px; font-family: var(--font); font-weight: 700; font-size: 0.86rem; cursor: pointer; transition: all 0.18s; }
+  .act--unlock { background: var(--yellow); color: #1a1400; }
+  .act--unlock:hover { box-shadow: 0 0 22px rgba(255,230,0,0.4); }
+  .act--lock { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  .act--lock:hover { border-color: var(--yellow); }
+  .act--disabled { background: rgba(255,255,255,0.04); color: var(--muted); cursor: not-allowed; }
+
+  .card.hidden { border-style: dashed; opacity: 0.5; cursor: not-allowed; }
+  .card.hidden .tag::before { content: "[?]"; }
+  .card.hidden .nm { filter: blur(4.5px); color: var(--muted); }
+  .card.hidden .hrs { filter: blur(3px); }
+
+  .panel__mentor { border-left: 2px solid var(--yellow); background: rgba(255,230,0,0.05); padding: 10px 14px; margin: 12px 0; border-radius: 0 8px 8px 0; font-size: 0.88rem; line-height: 1.55; color: #d8d8d8; }
+  .panel__mentor::before { content: "// mentor \2014 barik"; display: block; color: var(--yellow); font-size: 0.72rem; letter-spacing: 1px; margin-bottom: 6px; }
+  body[data-lang="ua"] .panel__mentor::before { content: "// ментор \2014 barik"; }
+  .panel__res { margin: 12px 0; }
+  .panel__res .res-h { color: var(--muted); font-size: 0.74rem; letter-spacing: 1px; margin-bottom: 8px; }
+  .panel__res .res-h::before { content: "> "; color: var(--yellow); }
+  .panel__res a { display: inline-flex; align-items: center; gap: 6px; color: var(--yellow); text-decoration: none; font-size: 0.86rem; margin: 3px 12px 3px 0; }
+  .panel__res a:hover { text-decoration: underline; }
+  .panel__res .lang { color: var(--muted); font-size: 0.72rem; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+
+  /* ---------------- quiz ---------------- */
+  .panel__quiz { margin: 12px 0; }
+  .panel__quiz .quiz-h { color: var(--muted); font-size: 0.74rem; letter-spacing: 1px; margin-bottom: 10px; }
+  .panel__quiz .quiz-h::before { content: "> "; color: var(--yellow); }
+  .quiz-q { margin-bottom: 14px; }
+  .quiz-qt { font-size: 0.9rem; color: var(--text); margin-bottom: 8px; line-height: 1.45; }
+  .quiz-opts { display: grid; gap: 6px; }
+  .quiz-opt { text-align: left; font-family: var(--font); font-size: 0.85rem; color: var(--text); background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; cursor: pointer; transition: all 0.15s; }
+  .quiz-opt:hover { border-color: var(--yellow); }
+  .quiz-opt.sel { border-color: var(--yellow); background: rgba(255,230,0,0.1); }
+  .quiz-opt.right { border-color: #46d17f; background: rgba(70,209,127,0.14); color: #d7ffe7; }
+  .quiz-opt.wrong { border-color: #ff5f56; background: rgba(255,95,86,0.13); color: #ffdedb; }
+  .quiz-why { margin-top: 7px; font-size: 0.8rem; color: var(--muted); border-left: 2px solid var(--line); padding-left: 10px; line-height: 1.5; }
+
+  .toast { position: fixed; left: 50%; top: 0; transform: translate(-50%, calc(-100% - 14px)); background: var(--panel); border: 1px solid var(--line); color: var(--text); padding: 11px 18px; border-radius: 10px; z-index: 60; font-size: 0.86rem; transition: transform 0.3s; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+  .toast.show { transform: translate(-50%, 18px); }
+  .toast b { color: var(--yellow); }
+
+  @media (max-width: 640px) { .term__stat.hide-sm { display: none; } }
+</style>
+</head>
+<body>
+<div id="tvon" aria-hidden="true"><div class="tvon-half tvon-top"></div><div class="tvon-half tvon-bot"></div><div class="tvon-glow"></div><div class="tvon-line"></div></div>
+<div class="grid-bg"></div>
+<div class="crt" aria-hidden="true"></div>
+<div class="scan" aria-hidden="true"></div>
+
+<!-- ===================== CLASS SELECT ===================== -->
+<section id="screen-select" class="screen active">
+  <div class="wrap">
+    <div class="sel-head">
+      <button class="langtog sel-lang" onclick="toggleLang()"><b data-l="en">EN</b> · <b data-l="ua">UA</b></button>
+      <div class="prompt">&gt; skilltree <b id="i18nSelCmd">--select-project</b></div>
+      <h1 id="i18nSelTitle">Choose your project</h1>
+      <p id="i18nSelSub">Pick a path, then unlock the graph. Progress saves in your browser.</p>
+    </div>
+    <div class="classes" id="classes"></div>
+    <div class="foot"><span id="i18nFoot">built by</span> <a href="https://www.tiktok.com/@barik7667" target="_blank" rel="noopener">barik</a></div>
+  </div>
+</section>
+
+<!-- ===================== TREE ===================== -->
+<section id="screen-tree" class="screen">
+  <div class="term">
+    <div class="term__bar">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="term__path">skilltree <b id="hudPath">~/</b></span>
+      <span class="spacer"></span>
+      <button class="langtog" onclick="toggleLang()"><b data-l="en">EN</b> · <b data-l="ua">UA</b></button>
+      <button class="tbtn" id="hudBack" onclick="backToSelect()">◄ projects</button>
+    </div>
+    <div class="term__status">
+      <span class="term__rank" id="hudRank">RANK: INTERN</span>
+      <span class="pbar"><i id="hudBar"></i></span>
+      <span class="term__stat" id="hudPct">0%</span>
+      <span class="term__stat hide-sm" id="hudSkills">0/0 unlocked</span>
+      <span class="term__stat hide-sm" id="hudHours">0/0h</span>
+      <span class="spacer"></span>
+      <button class="tbtn gold" id="hudShare" onclick="shareBuild()">&gt; share</button>
+      <button class="tbtn" id="hudReset" onclick="resetClass()">&gt; reset</button>
+    </div>
+  </div>
+  <p class="tree-hint" id="treeHint">Click a node to unlock it · locked nodes need their <b>dependencies</b> first</p>
+  <div class="tree-scroll">
+    <div class="canvas" id="canvas">
+      <svg class="traces" id="traces" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <g id="edges"></g>
+      </svg>
+      <div id="nodes"></div>
+    </div>
+  </div>
+</section>
+
+<!-- detail panel -->
+<div class="panel" id="panel">
+  <div class="panel__top">
+    <div class="panel__title" id="pTitle">skill</div>
+    <span class="panel__badge" id="pBadge">—</span>
+    <button class="panel__x" onclick="closePanel()" aria-label="Close">×</button>
+  </div>
+  <p class="panel__desc" id="pDesc"></p>
+  <div class="panel__mentor" id="pMentor" style="display:none"></div>
+  <div class="panel__res" id="pRes" style="display:none"></div>
+  <div class="panel__quiz" id="pQuiz" style="display:none"></div>
+  <div class="panel__row">
+    <span class="panel__cost"><span id="pCostLabel">cost</span>: <b id="pCost">~0h</b></span>
+  </div>
+  <div class="panel__actions" id="pActions"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =============================================================
+   SKILL TREE DATA
+   -------------------------------------------------------------
+   node: { id, name, tier, req:[ids], hours, desc, guide }
+   • tier  = row (0 = foundation)
+   • req   = ids that must be unlocked first (from a lower tier)
+   • hours = grind cost, summed into "hours invested"
+   • guide = OPTIONAL url. Paste YOUR youtube/article link here,
+             e.g. guide: "https://youtu.be/XXXX"  (leave "" to hide).
+   ============================================================= */
+const CLASSES = {
+  bot: {
+    name: { en:"Telegram Bot", ua:"Telegram-бот" },
+    blurb: { en:"Build a Telegram 'second brain' bot — notes & reminders. Then swap the idea for your own.", ua:"Побудуй Telegram-бота «другий мозок» — нотатки та нагадування. Потім заміни ідею на свою." },
+    nodes: [
+      { id:"py", name:{ en:"Python Basics", ua:"Основи Python" }, tier:0, req:[], hours:20, desc:{ en:"Syntax, variables, functions — the language your bot speaks.", ua:"Синтаксис, змінні, функції — мова, якою говорить твій бот." },
+        mentor:{ en:"Don't over-study theory. Learn just enough Python to start building — the bot will teach you the rest.", ua:"Не закопуйся в теорію. Вивчи стільки Python, щоб почати будувати — решти навчить сам бот." },
+        res:{ ru:[{t:"Python — курс", u:"https://www.youtube.com/playlist?list=PLDyJYA6aTY1lPWXBPk0gw6gR8fEtPDGKa"}], en:[{t:"Python from scratch", u:"https://www.youtube.com/watch?v=eWRfhZUzrAc&t=2632s"}] },
+        quiz:[{ q:{ en:"Which keyword defines a function in Python?", ua:"Яке ключове слово визначає функцію в Python?" }, opts:{ en:["func","def","function","fn"], ua:["func","def","function","fn"] }, correct:1, why:{ en:"Python uses 'def' to declare a function.", ua:"Python використовує 'def' для оголошення функції." } }] },
+      { id:"async", name:{ en:"Async Python", ua:"Асинхронний Python" }, tier:1, req:["py"], hours:12, desc:{ en:"async/await — how your bot serves many chats at once.", ua:"async/await — як бот обслуговує багато чатів одночасно." },
+        mentor:{ en:"Bots are async top to bottom. Get comfy with async/await now — it saves real pain later.", ua:"Боти асинхронні наскрізь. Звикай до async/await зараз — це збереже нерви потім." },
+        res:{ ru:[{t:"Async Python", u:"https://www.youtube.com/watch?v=80icdrpYS_I&list=PLDyJYA6aTY1mxa3gTUApNP7ZREjRDx9JH"}], en:[{t:"Async Python", u:"https://www.youtube.com/watch?v=Qb9s3UiMSTA"}] },
+        quiz:[{ q:{ en:"Where can you use 'await'?", ua:"Де можна використовувати 'await'?" }, opts:{ en:["Anywhere in the code","Only inside an async function","Only inside loops","Only at module top level"], ua:["Будь-де в коді","Тільки всередині async-функції","Тільки в циклах","Тільки на верхньому рівні модуля"] }, correct:1, why:{ en:"'await' is only valid inside an 'async def' function.", ua:"'await' дозволено лише всередині функції 'async def'." } }] },
+      { id:"git", name:{ en:"Git & GitHub", ua:"Git & GitHub" }, tier:1, req:["py"], hours:8, desc:{ en:"Version your bot from commit #1.", ua:"Веди версії бота з першого коміту." },
+        res:{ ru:[{t:"Git с нуля", u:"https://www.youtube.com/watch?v=XuFaQSW79rM&t=34s"}], en:[{t:"Git from scratch", u:"https://www.youtube.com/watch?v=mAFoROnOfHs"}] },
+        quiz:[{ q:{ en:"What does a commit represent in Git?", ua:"Що таке коміт у Git?" }, opts:{ en:["A live copy on GitHub's servers","A snapshot of your staged changes saved to history","A deleted branch","An unresolved merge conflict"], ua:["Живу копію на серверах GitHub","Знімок доданих у stage змін, збережений в історію","Видалену гілку","Невирішений конфлікт злиття"] }, correct:1, why:{ en:"A commit records a snapshot of your staged changes in your local repo's history.", ua:"Коміт зберігає знімок доданих змін в історії локального репозиторія." } }] },
+      { id:"bot101", name:{ en:"Bot 101", ua:"Bot 101" }, tier:2, req:["async"], hours:10, desc:{ en:"BotFather, tokens, updates. Polling vs webhooks — how a bot actually receives messages.", ua:"BotFather, токени, апдейти. Polling vs webhooks — як бот насправді отримує повідомлення." },
+        quiz:[{ q:{ en:"What's the difference between polling and webhooks?", ua:"Яка різниця між polling і webhooks?" }, opts:{ en:["Polling: Telegram pushes to you; webhook: you keep asking","Polling: your bot keeps asking Telegram for updates; webhook: Telegram pushes updates to your URL","They're identical","Webhooks only work on localhost"], ua:["Polling: Telegram сам надсилає; webhook: ти постійно питаєш","Polling: бот постійно питає Telegram про апдейти; webhook: Telegram надсилає їх на твій URL","Вони однакові","Webhooks працюють лише на localhost"] }, correct:1, why:{ en:"With polling your bot repeatedly asks Telegram for updates; with a webhook Telegram pushes them to your public URL.", ua:"При polling бот сам постійно питає Telegram; при webhook Telegram надсилає апдейти на твій публічний URL." } }] },
+      { id:"aiogram", name:{ en:"aiogram 3", ua:"aiogram 3" }, tier:3, req:["bot101"], hours:18, desc:{ en:"The framework: handlers, routers, filters. Your bot starts replying.", ua:"Фреймворк: хендлери, роутери, фільтри. Бот починає відповідати." },
+        mentor:{ en:"aiogram 3 is the modern standard. Routers stop your handlers from becoming one giant file.", ua:"aiogram 3 — сучасний стандарт. Роутери не дають хендлерам перетворитися на один величезний файл." },
+        res:{ ru:[{t:"aiogram 3 — плейлист", u:"https://www.youtube.com/watch?v=9Gu57ve-7ec&list=PLDyJYA6aTY1nqqMo25MOhwZJnoJB2Kf8L"}] },
+        quiz:[{ q:{ en:"What is a Router in aiogram 3 for?", ua:"Для чого потрібен Router в aiogram 3?" }, opts:{ en:["Styling messages","Grouping handlers so they aren't one giant file","Connecting to the database","Deploying the bot"], ua:["Стилізації повідомлень","Групування хендлерів, щоб вони не були одним величезним файлом","Підключення до бази даних","Деплою бота"] }, correct:1, why:{ en:"Routers group related handlers, keeping code modular instead of one huge file.", ua:"Роутери групують пов'язані хендлери, тримаючи код модульним." } }] },
+      { id:"kb", name:{ en:"Keyboards", ua:"Клавіатури" }, tier:4, req:["aiogram"], hours:8, desc:{ en:"Inline & reply keyboards — tappable UI instead of typed commands.", ua:"Inline та reply клавіатури — кнопки замість команд текстом." },
+        res:{ ru:[{t:"Клавиатуры в Telegram", u:"https://www.youtube.com/watch?v=QlQlH-PRQBU"}] },
+        quiz:[{ q:{ en:"How do inline and reply keyboards differ?", ua:"Чим відрізняються inline та reply клавіатури?" }, opts:{ en:["They're identical","Inline buttons sit under a message and send callback data; reply buttons replace the user's keyboard and send text","Reply keyboards send callback data","Inline keyboards can't be tapped"], ua:["Вони однакові","Inline-кнопки під повідомленням і надсилають callback data; reply замінюють клавіатуру й надсилають текст","Reply-клавіатури надсилають callback data","Inline-кнопки не натискаються"] }, correct:1, why:{ en:"Inline keyboards attach under a message and send callback_data; reply keyboards replace the user's keyboard and send text.", ua:"Inline-клавіатури під повідомленням і надсилають callback_data; reply замінюють клавіатуру." } }] },
+      { id:"fsm", name:{ en:"Conversations (FSM)", ua:"Діалоги (FSM)" }, tier:4, req:["aiogram"], hours:12, desc:{ en:"Multi-step flows: 'add a note' asked step by step.", ua:"Багатокрокові сценарії: «додати нотатку» — крок за кроком." },
+        res:{ ru:[{t:"FSM в aiogram", u:"https://www.youtube.com/watch?v=k8jOddZkZyU&list=PLDyJYA6aTY1nqqMo25MOhwZJnoJB2Kf8L&index=4"}] },
+        quiz:[{ q:{ en:"What is an FSM (finite state machine) used for in a bot?", ua:"Для чого в боті потрібна FSM (скінченний автомат)?" }, opts:{ en:["Storing passwords","Tracking which step of a multi-step conversation the user is in","Rendering images","Speeding up the database"], ua:["Зберігання паролів","Відстеження, на якому кроці діалогу користувач","Рендер зображень","Прискорення бази даних"] }, correct:1, why:{ en:"An FSM remembers the user's current step in a multi-step flow (e.g. ask title, then text).", ua:"FSM пам'ятає поточний крок користувача в багатокроковому сценарії." } }] },
+      { id:"db", name:{ en:"Store data (DB)", ua:"Зберігання даних (БД)" }, tier:5, req:["fsm"], hours:16, desc:{ en:"Save users & their notes in PostgreSQL. Your bot remembers.", ua:"Зберігай користувачів і їхні нотатки в PostgreSQL. Бот пам'ятає." },
+        mentor:{ en:"Start with plain SQL so you understand what's happening, then reach for an ORM.", ua:"Почни з чистого SQL, щоб розуміти, що відбувається, а потім бери ORM." },
+        res:{ ru:[{t:"Базы данных для бота", u:"https://www.youtube.com/watch?v=y3GmlzCmu-4&list=PLDyJYA6aTY1nqqMo25MOhwZJnoJB2Kf8L&index=7"}] },
+        quiz:[{ q:{ en:"Why use a database instead of a Python variable for user data?", ua:"Навіщо база даних замість Python-змінної для даних користувачів?" }, opts:{ en:["It's faster to type","Data survives restarts and scales across many users","Variables can't hold strings","Databases need no queries"], ua:["Це швидше набирати","Дані переживають перезапуск і масштабуються на багатьох користувачів","Змінні не тримають рядки","Базам не потрібні запити"] }, correct:1, why:{ en:"In-memory variables vanish on restart; a database persists data and scales across users.", ua:"Змінні в пам'яті зникають при перезапуску; база зберігає дані й масштабується." } }] },
+      { id:"jobs", name:{ en:"Reminders (jobs)", ua:"Нагадування (jobs)" }, tier:5, req:["db"], hours:12, desc:{ en:"Background scheduling — the bot pings you at the right time.", ua:"Фонове планування — бот пінгує тебе в потрібний час." },
+        res:{ ru:[{t:"Планировщик задач", u:"https://www.youtube.com/watch?v=l7OEATtLd38&list=PLDyJYA6aTY1nqqMo25MOhwZJnoJB2Kf8L&index=8"}] },
+        quiz:[{ q:{ en:"What is a job scheduler (e.g. APScheduler) used for?", ua:"Для чого потрібен планувальник задач (напр. APScheduler)?" }, opts:{ en:["Sending one message instantly","Running tasks later or on a repeating schedule (reminders)","Storing user data","Building keyboards"], ua:["Миттєво надіслати одне повідомлення","Запуск задач пізніше або за розкладом (нагадування)","Зберігання даних користувача","Побудова клавіатур"] }, correct:1, why:{ en:"A scheduler runs code at a future time or on a recurring interval — perfect for reminders.", ua:"Планувальник запускає код у майбутньому або періодично — ідеально для нагадувань." } }] },
+      { id:"arch", name:{ en:"Bot architecture", ua:"Архітектура бота" }, tier:6, req:["db"], hours:14, desc:{ en:"Split handlers → services → repositories. Stop cramming logic into handlers.", ua:"Розділи handlers → services → repositories. Годі пхати логіку в хендлери." },
+        mentor:{ en:"Not full Clean Architecture — just clean layers: handlers talk to Telegram, services hold logic, repositories touch the DB. This is exactly how I structure my own production bot.", ua:"Не повна Clean Architecture — просто чисті шари: хендлери — Telegram, сервіси — логіка, репозиторії — БД. Саме так побудований мій бойовий бот." },
+        quiz:[{ q:{ en:"Why split a bot into handlers, services and repositories?", ua:"Навіщо ділити бота на handlers, services і repositories?" }, opts:{ en:["To make it slower","So each layer has one job: handlers talk to Telegram, services hold logic, repositories touch the DB","Because Telegram requires it","To avoid using Git"], ua:["Щоб працював повільніше","Щоб кожен шар мав одну задачу: хендлери — Telegram, сервіси — логіка, репозиторії — БД","Бо цього вимагає Telegram","Щоб не користуватись Git"] }, correct:1, why:{ en:"Separating layers keeps logic out of handlers — easier to test, change and grow.", ua:"Розділення шарів прибирає логіку з хендлерів — легше тестувати й рости." } }] },
+      { id:"pay", name:{ en:"Payments (Stars)", ua:"Платежі (Stars)" }, tier:7, req:["arch"], hours:10, desc:{ en:"Charge for premium features via Telegram Stars.", ua:"Бери гроші за преміум-функції через Telegram Stars." },
+        quiz:[{ q:{ en:"What are Telegram Stars used for?", ua:"Для чого потрібні Telegram Stars?" }, opts:{ en:["Rating other users","Accepting in-bot payments for digital goods and features","Boosting message speed","Encrypting messages"], ua:["Оцінювання інших користувачів","Прийом платежів у боті за цифрові товари й функції","Прискорення повідомлень","Шифрування повідомлень"] }, correct:1, why:{ en:"Telegram Stars let bots charge users for premium features and digital goods.", ua:"Telegram Stars дають ботам брати оплату за преміум-функції та цифрові товари." } }] },
+      { id:"deploy", name:{ en:"Deploy 24/7", ua:"Деплой 24/7" }, tier:7, req:["arch"], hours:14, desc:{ en:"Webhook + Docker + a host — your bot runs without your laptop on.", ua:"Webhook + Docker + хостинг — бот працює без увімкненого ноута." },
+        mentor:{ en:"Deploy early, even half-built. A bot that only runs on your PC isn't a product.", ua:"Деплой рано, навіть недобудований. Бот, що працює лише на твоєму ПК — це не продукт." },
+        res:{ ru:[{t:"Деплой бота", u:"https://www.youtube.com/watch?v=4vQXjzWfC68&list=PLDyJYA6aTY1nqqMo25MOhwZJnoJB2Kf8L&index=9"}, {t:"Просто DevOps", u:"https://youtube.com/@prosto_devops"}] },
+        quiz:[{ q:{ en:"Why deploy your bot to a server instead of your laptop?", ua:"Навіщо деплоїти бота на сервер, а не тримати на ноуті?" }, opts:{ en:["It looks cooler","So it runs 24/7 without your computer being on","Telegram bans local bots","To avoid writing code"], ua:["Так крутіше виглядає","Щоб працював 24/7 без увімкненого комп'ютера","Telegram банить локальних ботів","Щоб не писати код"] }, correct:1, why:{ en:"A hosted bot stays online around the clock; one running only on your laptop dies when you close it.", ua:"Хостований бот онлайн цілодобово; той, що лише на ноуті, вмирає, щойно ти його закриєш." } }] },
+      { id:"ship", name:{ en:"🏁 Ship your bot", ua:"🏁 Запусти свого бота" }, tier:8, req:["jobs","deploy"], hours:16, desc:{ en:"Polish, publish, add to portfolio. Now swap 'notes' for YOUR idea and do it again.", ua:"Відполіруй, опублікуй, додай у портфоліо. Тепер заміни «нотатки» на СВОЮ ідею й повтори." } }
+    ]
+  },
+  web: {
+    name: { en:"Web App", ua:"Веб-застосунок" },
+    blurb: { en:"Build a link-in-bio web app (a personal hub). Then make it yours.", ua:"Побудуй веб-застосунок link-in-bio (особистий хаб). Потім зроби його своїм." },
+    nodes: [
+      { id:"cs", name:{ en:"C# Basics", ua:"Основи C#" }, tier:0, req:[], hours:25, desc:{ en:"The language of your backend: types, methods, async.", ua:"Мова твого бекенду: типи, методи, async." },
+        mentor:{ en:"Go deep on async/await early — e.g. why you can't hold a lock across an await. It bites everyone once.", ua:"Занурся в async/await рано — напр. чому не можна тримати lock через await. Це кусає кожного раз." },
+        res:{ ru:[{t:"C# — курс", u:"https://www.youtube.com/watch?v=KyFWqbRfWIA&list=PLQOaTSbfxUtD6kMmAYc8Fooqya3pjLs1N"}], en:[{t:"C# full course", u:"https://www.youtube.com/watch?v=pReR6Z9rK-o&list=PLzDRvYVwl53t2GGC4rV_AmH7vSvSqjVmz&index=9"}] },
+        quiz:[
+          { q:{ en:"Where is a value type (int, struct) stored vs a reference type?", ua:"Де зберігається value-тип (int, struct) проти reference-типу?" }, opts:{ en:["Value types hold a heap reference; reference types store the value inline","Value types store the value directly (stack); reference types hold a reference to a heap object","Both hold a heap reference","Both always live on the stack"], ua:["Value-типи тримають посилання на купу; reference зберігають значення напряму","Value-типи зберігають значення напряму (стек); reference тримають посилання на об'єкт у купі","Обидва тримають посилання на купу","Обидва завжди в стеку"] }, correct:1, why:{ en:"Value types (int, struct) store the value directly; reference types (class, array, string) hold a reference to a heap object.", ua:"Value-типи (int, struct) зберігають значення напряму; reference (class, array, string) — посилання на об'єкт у купі." } },
+          { q:{ en:"Which is true about struct vs class in C#?", ua:"Що вірно про struct vs class у C#?" }, opts:{ en:["struct is a reference type and supports inheritance","struct is a value type, no inheritance, can't be null","class is a value type on the stack","struct can be null, class can't"], ua:["struct — reference-тип і підтримує спадкування","struct — value-тип, без спадкування, не може бути null","class — value-тип у стеку","struct може бути null, class — ні"] }, correct:1, why:{ en:"A struct is a value type, has no inheritance and can't be null; a class is a reference type that supports inheritance.", ua:"struct — value-тип, без спадкування й не може бути null; class — reference-тип зі спадкуванням." } },
+          { q:{ en:"What's the difference between const and readonly?", ua:"Яка різниця між const і readonly?" }, opts:{ en:["const is set at runtime, readonly at compile time","const is fixed at compile time; readonly is set at declaration or in the constructor","They're identical","readonly must always be static"], ua:["const задається під час виконання, readonly — при компіляції","const фіксується при компіляції; readonly задається при оголошенні або в конструкторі","Вони однакові","readonly має завжди бути static"] }, correct:1, why:{ en:"const is baked in at compile time; readonly can be assigned at declaration or in the constructor (runtime).", ua:"const зашивається при компіляції; readonly можна задати при оголошенні або в конструкторі (під час виконання)." } }
+        ] },
+      { id:"web", name:{ en:"HTML · CSS · JS", ua:"HTML · CSS · JS" }, tier:1, req:["cs"], hours:25, desc:{ en:"The page your visitors actually see.", ua:"Сторінка, яку насправді бачать відвідувачі." },
+        res:{ ru:[{t:"HTML · CSS · JS", u:"https://www.youtube.com/watch?v=yJcCKuxfb2o&list=PLM6XATa8CAG4F9nAIYNS5oAiPotxwLFIr"}], en:[{t:"Web dev course", u:"https://www.youtube.com/watch?v=zJSY8tbf_ys&list=PLWKjhJtqVAbnSe1qUNMG7AbPmjIG54u88&index=5"}] },
+        quiz:[
+          { q:{ en:"Which is true about var, let and const in JavaScript?", ua:"Що вірно про var, let і const у JavaScript?" }, opts:{ en:["var is block-scoped, let is function-scoped","let and const are block-scoped; const can't be reassigned","const values can never change at all","var can't be redeclared"], ua:["var має блокову область, let — функціональну","let і const мають блокову область; const не можна переприсвоїти","Значення const взагалі ніколи не змінюється","var не можна оголосити повторно"] }, correct:1, why:{ en:"let/const are block-scoped; const can't be reassigned (object contents can still mutate). var is function-scoped and hoisted.", ua:"let/const — блокова область; const не можна переприсвоїти (вміст об'єкта все ще змінюється). var — функціональна область і hoisting." } },
+          { q:{ en:"What is a closure in JavaScript?", ua:"Що таке замикання (closure) в JavaScript?" }, opts:{ en:["A function with no arguments","A function that keeps access to its outer scope's variables after that outer function returned","A way to close a browser tab","A synchronous Promise"], ua:["Функція без аргументів","Функція, що зберігає доступ до змінних зовнішньої області після її завершення","Спосіб закрити вкладку браузера","Синхронний Promise"] }, correct:1, why:{ en:"A closure keeps access to variables from its outer scope even after the outer function has finished.", ua:"Замикання зберігає доступ до змінних зовнішньої області навіть після завершення зовнішньої функції." } },
+          { q:{ en:"How do arrow functions differ from regular functions?", ua:"Чим стрілкові функції відрізняються від звичайних?" }, opts:{ en:["They have their own 'this'","They don't have their own 'this' and can't be constructors","They are hoisted like function declarations","Regular functions can't be constructors"], ua:["Мають власний 'this'","Не мають власного 'this' і не можуть бути конструкторами","Піднімаються (hoisting) як оголошення функцій","Звичайні функції не можуть бути конструкторами"] }, correct:1, why:{ en:"Arrow functions don't bind their own 'this' (they inherit it) and can't be used as constructors.", ua:"Стрілкові функції не мають власного 'this' (успадковують його) і не можуть бути конструкторами." } }
+        ] },
+      { id:"git", name:{ en:"Git & GitHub", ua:"Git & GitHub" }, tier:1, req:["cs"], hours:8, desc:{ en:"Version everything from day one.", ua:"Веди версії всього з першого дня." },
+        res:{ ru:[{t:"Git с нуля", u:"https://www.youtube.com/watch?v=XuFaQSW79rM&t=34s"}], en:[{t:"Git from scratch", u:"https://www.youtube.com/watch?v=mAFoROnOfHs"}] },
+        quiz:[
+          { q:{ en:"What's the difference between git merge and git rebase?", ua:"Яка різниця між git merge і git rebase?" }, opts:{ en:["merge makes history linear; rebase adds a merge commit","merge combines branches with a merge commit; rebase replays commits for a linear history","They're identical","rebase deletes the branch"], ua:["merge робить історію лінійною; rebase додає merge-коміт","merge об'єднує гілки merge-комітом; rebase переносить коміти для лінійної історії","Вони однакові","rebase видаляє гілку"] }, correct:1, why:{ en:"merge keeps both histories via a merge commit; rebase moves commits onto another branch tip for a linear history.", ua:"merge зберігає обидві історії через merge-коміт; rebase переносить коміти на вершину іншої гілки для лінійної історії." } },
+          { q:{ en:"What is a pull request for?", ua:"Для чого потрібен pull request?" }, opts:{ en:["Pulling the latest code to your machine","Proposing to merge one branch into another, enabling code review","Deleting a remote branch","Reverting the last commit"], ua:["Щоб забрати останній код до себе","Запропонувати злити одну гілку в іншу з код-рев'ю","Видалити віддалену гілку","Відкотити останній коміт"] }, correct:1, why:{ en:"A PR proposes merging a branch (e.g. into main) and is where code review happens before the merge.", ua:"PR пропонує злити гілку (напр. у main) і є місцем код-рев'ю перед злиттям." } }
+        ] },
+      { id:"aspnet", name:{ en:"ASP.NET Core", ua:"ASP.NET Core" }, tier:2, req:["cs"], hours:28, desc:{ en:"The web framework: routing, DI, hosting.", ua:"Веб-фреймворк: маршрутизація, DI, хостинг." },
+        res:{ ru:[{t:"ASP.NET Core", u:"https://www.youtube.com/watch?v=X2-5mxFPvUM&t=5671s"}], en:[{t:"ASP.NET Core", u:"https://www.youtube.com/watch?v=AopeJjkcRvU&t=23760s"}] },
+        quiz:[
+          { q:{ en:"What is middleware in ASP.NET Core?", ua:"Що таке middleware в ASP.NET Core?" }, opts:{ en:["A database access layer","Components that process HTTP requests in a pipeline (auth, logging, CORS, errors)","A frontend framework","A kind of unit test"], ua:["Шар доступу до бази","Компоненти, що обробляють HTTP-запити в конвеєрі (auth, логи, CORS, помилки)","Фронтенд-фреймворк","Різновид юніт-тесту"] }, correct:1, why:{ en:"Middleware are pipeline components that handle each HTTP request/response — auth, logging, exception handling, CORS.", ua:"Middleware — компоненти конвеєра, що обробляють кожен HTTP-запит/відповідь: auth, логи, обробка помилок, CORS." } },
+          { q:{ en:"What problem does CORS solve?", ua:"Яку проблему вирішує CORS?" }, opts:{ en:["It speeds up queries","It controls whether requests from another origin (domain) are allowed","It encrypts passwords","It compresses responses"], ua:["Прискорює запити","Керує, чи дозволені запити з іншого домену (origin)","Шифрує паролі","Стискає відповіді"] }, correct:1, why:{ en:"CORS (Cross-Origin Resource Sharing) allows or blocks requests from a different domain — a browser security mechanism.", ua:"CORS (Cross-Origin Resource Sharing) дозволяє або блокує запити з іншого домену — механізм безпеки браузера." } }
+        ] },
+      { id:"api", name:{ en:"REST API", ua:"REST API" }, tier:3, req:["aspnet"], hours:18, desc:{ en:"Endpoints your frontend calls to load & save links.", ua:"Ендпоінти, які фронтенд викликає, щоб завантажувати й зберігати посилання." },
+        res:{ ru:[{t:"REST API", u:"https://www.youtube.com/watch?v=XaTwnKLQi4A&t=3273s"}], en:[{t:"REST API", u:"https://www.youtube.com/watch?v=WXsD0ZgxjRw"}] },
+        quiz:[
+          { q:{ en:"What's the difference between PUT and PATCH?", ua:"Яка різниця між PUT і PATCH?" }, opts:{ en:["PUT partially updates; PATCH replaces the whole resource","PUT replaces the whole resource; PATCH updates only some fields","They're identical","PATCH creates a new resource"], ua:["PUT оновлює частково; PATCH замінює весь ресурс","PUT замінює весь ресурс; PATCH оновлює лише деякі поля","Вони однакові","PATCH створює новий ресурс"] }, correct:1, why:{ en:"PUT replaces the entire resource; PATCH is a partial update of specific fields.", ua:"PUT замінює весь ресурс; PATCH — часткове оновлення окремих полів." } },
+          { q:{ en:"Which HTTP status code means a resource was created?", ua:"Який HTTP-код означає, що ресурс створено?" }, opts:{ en:["200 OK","201 Created","400 Bad Request","404 Not Found"], ua:["200 OK","201 Created","400 Bad Request","404 Not Found"] }, correct:1, why:{ en:"201 Created signals a new resource was created; 200 is generic success, 400/404 are client errors.", ua:"201 Created означає, що створено новий ресурс; 200 — загальний успіх, 400/404 — помилки клієнта." } },
+          { q:{ en:"What does 'idempotent' mean for an operation?", ua:"Що означає, що операція ідемпотентна?" }, opts:{ en:["It always returns a different result","Repeating it doesn't change the result after the first time (GET, PUT, DELETE)","It can only be called once","It requires auth"], ua:["Завжди повертає інший результат","Повторний виклик не змінює результат після першого разу (GET, PUT, DELETE)","Її можна викликати лише раз","Вимагає авторизації"] }, correct:1, why:{ en:"Idempotent operations leave the same state no matter how many times you repeat them — GET, PUT, DELETE.", ua:"Ідемпотентні операції залишають той самий стан, скільки б разів ти їх не повторював — GET, PUT, DELETE." } }
+        ] },
+      { id:"sql", name:{ en:"SQL & Databases", ua:"SQL і бази даних" }, tier:3, req:["aspnet"], hours:20, desc:{ en:"Store users and their pages.", ua:"Зберігай користувачів і їхні сторінки." },
+        res:{ ru:[{t:"SQL — курс", u:"https://www.youtube.com/watch?v=iEKaqCAp-jg&t=829s"}], en:[{t:"SQL course", u:"https://www.youtube.com/watch?v=HXV3zeQKqGY"}] },
+        quiz:[
+          { q:{ en:"What does a LEFT JOIN return?", ua:"Що повертає LEFT JOIN?" }, opts:{ en:["Only rows matching in both tables","All rows from the left table + matches from the right (NULLs where none)","All rows from the right table only","Only rows with no match"], ua:["Лише рядки, що збігаються в обох таблицях","Усі рядки з лівої таблиці + збіги з правої (NULL, де немає)","Лише всі рядки з правої таблиці","Лише рядки без збігу"] }, correct:1, why:{ en:"LEFT JOIN returns every left-table row, with matched right data or NULLs where there's no match.", ua:"LEFT JOIN повертає кожен рядок лівої таблиці з даними правої або NULL, де збігу немає." } },
+          { q:{ en:"What does the 'A' in ACID stand for?", ua:"Що означає 'A' в ACID?" }, opts:{ en:["Availability","Atomicity — all operations succeed or none do","Authentication","Asynchrony"], ua:["Availability (доступність)","Atomicity — усі операції або виконуються, або жодна","Authentication (автентифікація)","Asynchrony (асинхронність)"] }, correct:1, why:{ en:"Atomicity = all-or-nothing. ACID is Atomicity, Consistency, Isolation, Durability.", ua:"Atomicity — усе або нічого. ACID: Atomicity, Consistency, Isolation, Durability." } },
+          { q:{ en:"What is a database index for — and the trade-off?", ua:"Навіщо потрібен індекс у БД і в чому компроміс?" }, opts:{ en:["It stores backups and speeds up inserts","It speeds up lookups/queries but slows inserts and updates","It encrypts the table","It has no downside"], ua:["Зберігає бекапи й прискорює вставки","Прискорює пошук/запити, але сповільнює вставки й оновлення","Шифрує таблицю","Не має недоліків"] }, correct:1, why:{ en:"An index speeds up reads/searches but adds write cost — it must be maintained on insert/update.", ua:"Індекс прискорює читання/пошук, але додає вартість запису — його треба оновлювати при insert/update." } }
+        ] },
+      { id:"efcore", name:{ en:"EF Core", ua:"EF Core" }, tier:4, req:["api","sql"], hours:18, desc:{ en:"Talk to the database from C#.", ua:"Спілкуйся з базою даних з C#." },
+        mentor:{ en:"Drill CRUD until it's reflex — pagination, filtering, AsNoTracking, AsSplitQuery. That's what makes queries fast without thinking.", ua:"Доведи CRUD до рефлексу — пагінація, фільтри, AsNoTracking, AsSplitQuery. Саме це робить запити швидкими без роздумів." },
+        res:{ ru:[{t:"EF Core", u:"https://www.youtube.com/watch?v=M3_Jt_qlr9w&t=1928s"}], en:[{t:"Anton Martyniuk (blog)", u:"https://antondevtips.com"}] },
+        quiz:[
+          { q:{ en:"What causes the 'N+1 query' problem in EF Core?", ua:"Що спричиняє проблему 'N+1 запитів' у EF Core?" }, opts:{ en:["Using Include() to load related data","Lazy loading: 1 query for the list + 1 per item's navigation","Using a single JOIN","Running migrations"], ua:["Використання Include() для завантаження пов'язаних даних","Lazy loading: 1 запит на список + 1 на кожну навігацію елемента","Один JOIN","Запуск міграцій"] }, correct:1, why:{ en:"Lazy loading runs 1 query for N items plus 1 per navigation access = N+1. Include() (eager loading) fixes it.", ua:"Lazy loading робить 1 запит на N елементів плюс 1 на кожну навігацію = N+1. Include() (eager loading) це виправляє." } },
+          { q:{ en:"What's special about IQueryable vs IEnumerable?", ua:"Чим особливий IQueryable проти IEnumerable?" }, opts:{ en:["It loads all rows into memory first","It builds a deferred query translated to SQL and run on the database","It can't be used with LINQ","It only works with arrays"], ua:["Спершу вантажить усі рядки в пам'ять","Будує відкладений запит, що транслюється в SQL і виконується на БД","Не працює з LINQ","Працює лише з масивами"] }, correct:1, why:{ en:"IQueryable composes a query executed on the DB (deferred, translated to SQL); IEnumerable iterates in memory.", ua:"IQueryable складає запит, що виконується на БД (відкладено, транслюється в SQL); IEnumerable ітерує в пам'яті." } }
+        ] },
+      { id:"front", name:{ en:"Frontend (Angular/React)", ua:"Фронтенд (Angular/React)" }, tier:4, req:["web"], hours:35, desc:{ en:"Wire a real UI to your API.", ua:"Під'єднай справжній UI до свого API." },
+        res:{ ru:[{t:"Angular — курс", u:"https://www.youtube.com/watch?v=BVIffUyYlUk&t=438s"}], en:[{t:"Angular course", u:"https://www.youtube.com/watch?v=3qBXWUpoPHo"}] },
+        quiz:[
+          { q:{ en:"In Angular, when is ngOnInit called?", ua:"Коли викликається ngOnInit в Angular?" }, opts:{ en:["Every time an input changes","Once, after the component is initialized — to set up data","Right before the component is destroyed","On every mouse event"], ua:["Щоразу при зміні input","Один раз після ініціалізації компонента — для налаштування даних","Прямо перед знищенням компонента","На кожну подію миші"] }, correct:1, why:{ en:"ngOnInit runs once after init (setup). ngOnChanges fires on @Input changes; ngOnDestroy on teardown.", ua:"ngOnInit виконується один раз після ініціалізації. ngOnChanges — при змінах @Input; ngOnDestroy — при знищенні." } },
+          { q:{ en:"How does an Observable differ from a Promise?", ua:"Чим Observable відрізняється від Promise?" }, opts:{ en:["A Promise emits many values, an Observable one","An Observable is a cancellable stream of many values; a Promise resolves one value","They're identical","Observables can't be async"], ua:["Promise видає багато значень, Observable — одне","Observable — потік багатьох значень, який можна скасувати; Promise віддає одне значення","Вони однакові","Observable не може бути асинхронним"] }, correct:1, why:{ en:"An Observable emits multiple values over time and is cancellable/composable; a Promise handles a single result.", ua:"Observable видає багато значень у часі й скасовується/композиться; Promise віддає єдиний результат." } }
+        ] },
+      { id:"auth", name:{ en:"Auth", ua:"Auth" }, tier:5, req:["efcore"], hours:15, desc:{ en:"Login — so each user owns their own page.", ua:"Логін — щоб кожен користувач мав власну сторінку." },
+        res:{ ru:[{t:"Auth в ASP.NET", u:"https://www.youtube.com/watch?v=sMe3T6rFkXo&t=1908s"}] },
+        quiz:[
+          { q:{ en:"How is a JWT usually sent with each request?", ua:"Як зазвичай надсилається JWT з кожним запитом?" }, opts:{ en:["As a cookie the server sets","In the Authorization header as a Bearer token","Inside the URL path","It isn't sent — the server remembers it"], ua:["Як cookie, що ставить сервер","У заголовку Authorization як Bearer-токен","Усередині шляху URL","Не надсилається — сервер пам'ятає"] }, correct:1, why:{ en:"A JWT carries encoded user data and is sent in the Authorization: Bearer header.", ua:"JWT несе закодовані дані користувача й надсилається в заголовку Authorization: Bearer." } },
+          { q:{ en:"What is authorization (vs authentication)?", ua:"Що таке авторизація (проти автентифікації)?" }, opts:{ en:["Verifying who the user is","Checking what an authenticated user is allowed to do (roles/policies/claims)","Encrypting the password","Storing a session cookie"], ua:["Перевірка, хто користувач","Перевірка, що дозволено автентифікованому користувачу (ролі/політики/claims)","Шифрування пароля","Зберігання сесійного cookie"] }, correct:1, why:{ en:"Authentication = who you are; authorization = what you may do (roles, policies, claims — e.g. [Authorize]).", ua:"Автентифікація = хто ти; авторизація = що тобі дозволено (ролі, політики, claims — напр. [Authorize])." } }
+        ] },
+      { id:"arch", name:{ en:"Architecture", ua:"Архітектура" }, tier:5, req:["efcore"], hours:16, desc:{ en:"N-Layer → Clean Architecture as the app grows.", ua:"N-Layer → Clean Architecture у міру росту застосунку." },
+        mentor:{ en:"Learn architecture early. Repository interfaces belong in the Application layer, not Infrastructure — it changes how you structure everything.", ua:"Вивчай архітектуру рано. Інтерфейси репозиторіїв належать шару Application, а не Infrastructure — це змінює те, як ти структуруєш усе." },
+        res:{ ru:[{t:"Чистая архитектура", u:"https://www.youtube.com/watch?v=HRQDrJany-A&t=717s"}], en:[{t:"Clean Architecture", u:"https://www.youtube.com/watch?v=TQdLgzVk2T8"}, {t:"Milan Jovanović", u:"https://www.youtube.com/@MilanJovanovicTech"}] },
+        quiz:[
+          { q:{ en:"What does the 'S' in SOLID (Single Responsibility) mean?", ua:"Що означає 'S' у SOLID (Single Responsibility)?" }, opts:{ en:["A class should do as much as possible","A class should have only one reason to change","All classes must be static","Single inheritance only"], ua:["Клас має робити якомога більше","Клас має мати лише одну причину для зміни","Усі класи мають бути static","Лише одиночне спадкування"] }, correct:1, why:{ en:"Single Responsibility: a class should have one responsibility — one reason to change.", ua:"Single Responsibility: клас має одну відповідальність — одну причину для зміни." } },
+          { q:{ en:"What is Dependency Injection?", ua:"Що таке Dependency Injection?" }, opts:{ en:["Injecting SQL into a query","Giving a class its dependencies from outside (e.g. the constructor) instead of creating them itself","A caching strategy","A Git workflow"], ua:["Впровадження SQL у запит","Надання класу залежностей ззовні (напр. через конструктор), а не створення їх самому","Стратегія кешування","Git-воркфлоу"] }, correct:1, why:{ en:"DI supplies a class's dependencies externally (constructor/method), decoupling it from concrete implementations.", ua:"DI постачає залежності класу ззовні (конструктор/метод), відв'язуючи його від конкретних реалізацій." } }
+        ] },
+      { id:"docker", name:{ en:"Docker", ua:"Docker" }, tier:6, req:["auth"], hours:12, desc:{ en:"Package your app so it runs anywhere.", ua:"Запакуй застосунок, щоб він працював будь-де." },
+        res:{ ru:[{t:"Docker", u:"https://www.youtube.com/watch?v=0oke9VfRt2M&t=10s"}], en:[{t:"Docker", u:"https://www.youtube.com/watch?v=DQdB7wFEygo"}] },
+        quiz:[
+          { q:{ en:"How does a container differ from a virtual machine?", ua:"Чим контейнер відрізняється від віртуальної машини?" }, opts:{ en:["A container runs a full guest OS with a hypervisor","A container is lightweight and shares the host OS kernel; a VM runs a full OS and is heavier","They're the same","A VM is always smaller and faster"], ua:["Контейнер запускає повну гостьову ОС через гіпервізор","Контейнер легкий і ділить ядро ОС хоста; ВМ запускає повну ОС і важча","Вони однакові","ВМ завжди менша й швидша"] }, correct:1, why:{ en:"Containers share the host kernel (lightweight, fast); VMs bundle a full OS via a hypervisor (heavier).", ua:"Контейнери ділять ядро хоста (легкі, швидкі); ВМ несуть повну ОС через гіпервізор (важчі)." } },
+          { q:{ en:"What is Docker mainly used for?", ua:"Для чого переважно використовують Docker?" }, opts:{ en:["Writing SQL","Packaging an app with its dependencies so it runs the same everywhere","Designing UI","Managing Git branches"], ua:["Писати SQL","Запакувати застосунок із залежностями, щоб він працював однаково будь-де","Дизайн UI","Керування Git-гілками"] }, correct:1, why:{ en:"Docker containerizes an app with its dependencies for consistent deployment across environments.", ua:"Docker контейнеризує застосунок із залежностями для однакового деплою в різних середовищах." } }
+        ] },
+      { id:"deploy", name:{ en:"Deploy (Azure)", ua:"Деплой (Azure)" }, tier:7, req:["docker"], hours:22, desc:{ en:"Your app, live on a real domain.", ua:"Твій застосунок наживо на справжньому домені." },
+        mentor:{ en:"Deploying end-to-end teaches more than 10 tutorials. Break it, fix it, redeploy.", ua:"Деплой від початку до кінця вчить більше за 10 туторіалів. Зламай, полагодь, передеплой." },
+        res:{ ru:[{t:"Просто DevOps", u:"https://youtube.com/@prosto_devops"}] },
+        quiz:[{ q:{ en:"What does deploying to the cloud (e.g. Azure) give you?", ua:"Що дає деплой у хмару (напр. Azure)?" }, opts:{ en:["A local-only app","A publicly reachable app on a real domain, running without your PC","Always slower performance","No need for Docker ever"], ua:["Лише локальний застосунок","Публічно доступний застосунок на справжньому домені, що працює без твого ПК","Завжди повільнішу роботу","Що більше не потрібен Docker"] }, correct:1, why:{ en:"Cloud hosting makes your app publicly reachable 24/7 on a real domain, independent of your machine.", ua:"Хмарний хостинг робить застосунок публічно доступним 24/7 на справжньому домені, незалежно від твоєї машини." } }] },
+      { id:"ship", name:{ en:"🏁 Ship your web app", ua:"🏁 Запусти свій веб-застосунок" }, tier:8, req:["front","deploy","arch"], hours:30, desc:{ en:"Ship it, put it in your portfolio — then rebuild it as YOUR product.", ua:"Запусти, додай у портфоліо — потім перебудуй як СВІЙ продукт." } }
+    ]
+  },
+  ai: {
+    name: { en:"AI App", ua:"ШІ-застосунок" },
+    blurb: { en:"Build an AI that chats with your documents (RAG). Then point it at anything.", ua:"Побудуй ШІ, що спілкується з твоїми документами (RAG). Потім наведи його на будь-що." },
+    nodes: [
+      { id:"aipy", name:{ en:"Python Basics", ua:"Основи Python" }, tier:0, req:[], hours:20, desc:{ en:"Python — the language of AI.", ua:"Python — мова ШІ." },
+        res:{ ru:[{t:"Python — курс", u:"https://www.youtube.com/playlist?list=PLDyJYA6aTY1lPWXBPk0gw6gR8fEtPDGKa"}], en:[{t:"Python from scratch", u:"https://www.youtube.com/watch?v=eWRfhZUzrAc&t=2632s"}] },
+        quiz:[{ q:{ en:"Which Python data structure stores key–value pairs?", ua:"Яка структура даних у Python зберігає пари ключ–значення?" }, opts:{ en:["list","dict","tuple","set"], ua:["list","dict","tuple","set"] }, correct:1, why:{ en:"A dict stores key–value pairs; lists/tuples are ordered sequences and sets hold unique unordered items.", ua:"dict зберігає пари ключ–значення; list/tuple — впорядковані послідовності, set — унікальні невпорядковані елементи." } }] },
+      { id:"how", name:{ en:"How AI works", ua:"Як працює ШІ" }, tier:1, req:["aipy"], hours:14, desc:{ en:"Models, training, weights — the intuition, without drowning in math.", ua:"Моделі, навчання, ваги — інтуїція, без потопання в математиці." },
+        mentor:{ en:"You don't need a PhD. Understand what a model, a weight and an embedding ARE — that's enough to build cool things.", ua:"PhD не потрібен. Зрозумій, ЩО таке модель, вага й ембединг — цього досить, щоб будувати круті речі." },
+        res:{ ru:[{t:"Как работает ИИ", u:"https://www.youtube.com/watch?v=tihq_bLfk08&t=31s"}], en:[{t:"How AI works", u:"https://www.youtube.com/watch?v=1aM1KYvl4Dw"}] },
+        quiz:[{ q:{ en:"What is a 'weight' in a neural network?", ua:"Що таке 'вага' в нейромережі?" }, opts:{ en:["The model's file size","A learned parameter that sets how strongly one input affects the output","The number of GPUs","The prompt you type"], ua:["Розмір файлу моделі","Вивчений параметр, що задає, наскільки сильно вхід впливає на вихід","Кількість GPU","Промпт, який ти вводиш"] }, correct:1, why:{ en:"Weights are the parameters a model learns during training; they decide how much each input influences the result.", ua:"Ваги — параметри, які модель вивчає під час навчання; вони визначають, наскільки кожен вхід впливає на результат." } }] },
+      { id:"local", name:{ en:"Run LLMs locally", ua:"Запуск LLM локально" }, tier:2, req:["how"], hours:8, desc:{ en:"LM Studio / Ollama — run models on your own PC and just play.", ua:"LM Studio / Ollama — запускай моделі на своєму ПК і просто грайся." },
+        res:{ en:[{t:"Run LLMs locally", u:"https://www.youtube.com/watch?v=A2CqSfd5I4I&t=217s"}] },
+        quiz:[{ q:{ en:"What's a benefit of running an LLM locally?", ua:"Яка перевага запуску LLM локально?" }, opts:{ en:["It's always smarter than cloud models","Privacy and no per-token API cost","It needs no hardware","It can't work offline"], ua:["Вона завжди розумніша за хмарні моделі","Приватність і жодних витрат на API за токен","Не потрібне залізо","Не працює офлайн"] }, correct:1, why:{ en:"Local models keep your data private and cost nothing per token — at the cost of your own hardware.", ua:"Локальні моделі тримають дані приватними й нічого не коштують за токен — ціною твого заліза." } }] },
+      { id:"embed", name:{ en:"Embeddings & vectors", ua:"Ембединги та вектори" }, tier:2, req:["how"], hours:14, desc:{ en:"How text turns into numbers a machine can search by meaning.", ua:"Як текст перетворюється на числа, за якими машина шукає за змістом." },
+        res:{ en:[{t:"Embeddings & vectors", u:"https://www.youtube.com/watch?v=yfHHvmaMkcA"}] },
+        quiz:[{ q:{ en:"What is a text embedding?", ua:"Що таке ембединг тексту?" }, opts:{ en:["A screenshot of text","A vector of numbers capturing the text's meaning for similarity search","A compressed zip file","A database index"], ua:["Скріншот тексту","Вектор чисел, що передає зміст тексту для пошуку за схожістю","Стиснений zip-файл","Індекс бази даних"] }, correct:1, why:{ en:"An embedding turns text into a numeric vector so machines can compare meaning by distance between vectors.", ua:"Ембединг перетворює текст на числовий вектор, щоб машини порівнювали зміст за відстанню між векторами." } }] },
+      { id:"prompt", name:{ en:"Prompting", ua:"Промптинг" }, tier:3, req:["local"], hours:8, desc:{ en:"Get good, reliable answers out of a model.", ua:"Отримуй якісні, надійні відповіді від моделі." },
+        res:{ en:[{t:"Prompting", u:"https://www.youtube.com/watch?v=_ZvnD73m40o"}] },
+        quiz:[{ q:{ en:"Which usually gives more reliable LLM output?", ua:"Що зазвичай дає надійніший результат від LLM?" }, opts:{ en:["Vague one-word prompts","Clear instructions with context and examples","Random emojis","Longer is always better regardless of content"], ua:["Розмиті однослівні промпти","Чіткі інструкції з контекстом і прикладами","Випадкові емодзі","Що довше, то краще, незалежно від змісту"] }, correct:1, why:{ en:"Specific instructions plus context/examples steer the model toward reliable answers.", ua:"Конкретні інструкції плюс контекст/приклади ведуть модель до надійних відповідей." } }] },
+      { id:"api", name:{ en:"Use model APIs", ua:"Виклик API моделей" }, tier:3, req:["local"], hours:10, desc:{ en:"Call local or cloud models from your code.", ua:"Викликай локальні або хмарні моделі зі свого коду." },
+        res:{ en:[{t:"Model APIs", u:"https://www.youtube.com/watch?v=uRQH2CFvedY"}] },
+        quiz:[{ q:{ en:"In a chat API, what does the 'system' message do?", ua:"Що робить повідомлення 'system' у чат-API?" }, opts:{ en:["Stores your password","Sets the assistant's role and rules for the whole conversation","Sends the bill","Picks the GPU"], ua:["Зберігає твій пароль","Задає роль і правила асистента на всю розмову","Надсилає рахунок","Обирає GPU"] }, correct:1, why:{ en:"The system message sets the assistant's persona and behavior that guide the entire conversation.", ua:"Системне повідомлення задає персону й поведінку асистента, що керують усією розмовою." } }] },
+      { id:"vecdb", name:{ en:"Vector DB", ua:"Векторна БД" }, tier:3, req:["embed"], hours:12, desc:{ en:"Store & search embeddings (pgvector) — fast semantic search.", ua:"Зберігай і шукай ембединги (pgvector) — швидкий семантичний пошук." },
+        quiz:[{ q:{ en:"What does a vector database (e.g. pgvector) do?", ua:"Що робить векторна база (напр. pgvector)?" }, opts:{ en:["Stores images only","Stores embeddings and finds the most similar ones fast","Runs the model","Compiles code"], ua:["Зберігає лише зображення","Зберігає ембединги й швидко знаходить найсхожіші","Запускає модель","Компілює код"] }, correct:1, why:{ en:"A vector DB stores embeddings and does fast nearest-neighbor search to find semantically similar items.", ua:"Векторна БД зберігає ембединги й робить швидкий пошук найближчих сусідів, щоб знайти семантично схожі елементи." } }] },
+      { id:"rag", name:{ en:"RAG", ua:"RAG" }, tier:4, req:["prompt","embed"], hours:18, desc:{ en:"Feed YOUR documents to the model and chat with them.", ua:"Згодуй моделі СВОЇ документи й спілкуйся з ними." },
+        res:{ en:[{t:"RAG", u:"https://www.youtube.com/watch?v=swvzKSOEluc"}] },
+        quiz:[{ q:{ en:"What does RAG (Retrieval-Augmented Generation) do?", ua:"Що робить RAG (Retrieval-Augmented Generation)?" }, opts:{ en:["Trains a model from scratch","Retrieves relevant documents and adds them to the prompt before the model answers","Deletes the model's memory","Speeds up the GPU"], ua:["Навчає модель з нуля","Дістає релевантні документи й додає їх у промпт перед відповіддю","Стирає пам'ять моделі","Прискорює GPU"] }, correct:1, why:{ en:"RAG retrieves relevant chunks from your data and feeds them to the model so it answers from YOUR documents.", ua:"RAG дістає релевантні фрагменти з твоїх даних і згодовує моделі, щоб вона відповідала з ТВОЇХ документів." } }] },
+      { id:"build", name:{ en:"Build the pipeline", ua:"Побудуй пайплайн" }, tier:5, req:["rag","api","vecdb"], hours:20, desc:{ en:"Upload doc → embed → retrieve → answer. The whole loop.", ua:"Завантаж документ → ембединг → пошук → відповідь. Увесь цикл." },
+        quiz:[{ q:{ en:"What's the typical RAG pipeline order?", ua:"Який типовий порядок RAG-пайплайну?" }, opts:{ en:["answer → embed → retrieve → upload","upload doc → embed → store → retrieve → answer","retrieve → answer → embed","embed → answer → upload"], ua:["відповідь → ембединг → пошук → завантаження","завантаж документ → ембединг → збережи → знайди → відповідь","пошук → відповідь → ембединг","ембединг → відповідь → завантаження"] }, correct:1, why:{ en:"You ingest a doc, embed it, store the vectors, then per question retrieve relevant chunks and generate an answer.", ua:"Ти завантажуєш документ, робиш ембединг, зберігаєш вектори, а потім на кожне питання дістаєш релевантні фрагменти й генеруєш відповідь." } }] },
+      { id:"agents", name:{ en:"Agents & MCP", ua:"Агенти та MCP" }, tier:6, req:["build"], hours:18, desc:{ en:"Let the model use tools and act, not just answer.", ua:"Дай моделі користуватись інструментами й діяти, а не лише відповідати." },
+        res:{ en:[{t:"Agents & MCP", u:"https://www.youtube.com/watch?v=E2DEHOEbzks"}] },
+        quiz:[{ q:{ en:"What makes an LLM 'agent' different from a plain chatbot?", ua:"Чим 'агент' на LLM відрізняється від звичайного чатбота?" }, opts:{ en:["It types faster","It can call tools and take actions, not just reply with text","It never makes mistakes","It runs without a model"], ua:["Друкує швидше","Може викликати інструменти й діяти, а не лише відповідати текстом","Ніколи не помиляється","Працює без моделі"] }, correct:1, why:{ en:"An agent can use tools/APIs to act (search, run code, call services), not just produce text.", ua:"Агент може користуватись інструментами/API, щоб діяти (шукати, запускати код, викликати сервіси), а не лише видавати текст." } }] },
+      { id:"finetune", name:{ en:"Fine-tuning basics", ua:"Основи fine-tuning" }, tier:6, req:["api"], hours:20, desc:{ en:"Adapt a model to a style/task (LoRA) — when it's worth it and when it isn't.", ua:"Адаптуй модель під стиль/задачу (LoRA) — коли це варто, а коли ні." },
+        mentor:{ en:"Fine-tuning needs a GPU and is usually overkill. 90% of the time RAG + a good prompt beats it. Reach for it last.", ua:"Fine-tuning потребує GPU і зазвичай надмірний. У 90% випадків RAG + хороший промпт кращі. Бери його в останню чергу." },
+        res:{ en:[{t:"Fine-tuning", u:"https://www.youtube.com/watch?v=iOdFUJiB0Zc"}] },
+        quiz:[{ q:{ en:"When is fine-tuning usually the RIGHT choice?", ua:"Коли fine-tuning зазвичай ПРАВИЛЬНИЙ вибір?" }, opts:{ en:["Whenever you want the model to know new facts","Mostly for a consistent style or format; for facts, RAG is usually better","Always, instead of prompting","Never, it's impossible"], ua:["Коли хочеш, щоб модель знала нові факти","Переважно для сталого стилю чи формату; для фактів зазвичай кращий RAG","Завжди, замість промптингу","Ніколи, це неможливо"] }, correct:1, why:{ en:"Fine-tuning is best for style/behavior; to inject knowledge, RAG + a good prompt usually wins (and is cheaper).", ua:"Fine-tuning найкращий для стилю/поведінки; щоб додати знання, зазвичай виграє RAG + хороший промпт (і дешевше)." } }] },
+      { id:"deploy", name:{ en:"Deploy", ua:"Деплой" }, tier:7, req:["build"], hours:16, desc:{ en:"Put your AI app online for others to use.", ua:"Виклади свій ШІ-застосунок онлайн, щоб ним користувались інші." },
+        quiz:[{ q:{ en:"What's a safe way to ship an AI app that calls a paid API?", ua:"Як безпечно зашипити ШІ-застосунок, що викликає платний API?" }, opts:{ en:["Put the API key in the frontend JS","Keep the API key server-side and call the model from your backend","Email the key to users","Hard-code it in a public repo"], ua:["Покласти ключ API у фронтенд-JS","Тримати ключ API на сервері й викликати модель з бекенду","Надіслати ключ користувачам поштою","Захардкодити його в публічному репо"] }, correct:1, why:{ en:"Never expose API keys in the client — keep them server-side and proxy the model calls through your backend.", ua:"Ніколи не світи ключі API в клієнті — тримай їх на сервері й проксіюй виклики моделі через свій бекенд." } }] },
+      { id:"ship", name:{ en:"🏁 Ship your AI app", ua:"🏁 Запусти свій ШІ-застосунок" }, tier:8, req:["agents","deploy"], hours:24, desc:{ en:"Ship it — then point it at a new domain (your notes, a wiki, docs) and you have a new product.", ua:"Запусти — потім наведи на нову область (свої нотатки, вікі, доки) і матимеш новий продукт." } }
+    ]
+  },
+  landing: {
+    name: { en:"Landing Page", ua:"Лендінг" },
+    blurb: { en:"Build & ship your personal one-pager. The fastest first win.", ua:"Побудуй і запусти свій особистий односторінковик. Найшвидша перша перемога." },
+    nodes: [
+      { id:"html", name:{ en:"HTML", ua:"HTML" }, tier:0, req:[], hours:10, desc:{ en:"The skeleton of your page.", ua:"Скелет твоєї сторінки." },
+        res:{ ru:[{t:"HTML · CSS · JS", u:"https://www.youtube.com/watch?v=yJcCKuxfb2o&list=PLM6XATa8CAG4F9nAIYNS5oAiPotxwLFIr"}], en:[{t:"Web dev course", u:"https://www.youtube.com/watch?v=zJSY8tbf_ys&list=PLWKjhJtqVAbnSe1qUNMG7AbPmjIG54u88&index=5"}] },
+        quiz:[{ q:{ en:"What does HTML provide for a web page?", ua:"Що дає HTML для веб-сторінки?" }, opts:{ en:["The colors and animations","The structure and content: headings, text, images, links","The database","The server logic"], ua:["Кольори та анімації","Структуру й контент: заголовки, текст, зображення, посилання","Базу даних","Серверну логіку"] }, correct:1, why:{ en:"HTML defines structure and content; CSS handles the look and JS the behavior.", ua:"HTML визначає структуру й контент; CSS відповідає за вигляд, а JS — за поведінку." } }] },
+      { id:"css", name:{ en:"CSS", ua:"CSS" }, tier:1, req:["html"], hours:16, desc:{ en:"Colors, spacing, typography — make it look good.", ua:"Кольори, відступи, типографіка — зроби красиво." },
+        quiz:[{ q:{ en:"What is CSS responsible for?", ua:"За що відповідає CSS?" }, opts:{ en:["Page structure","Styling: colors, spacing, layout and typography","Server routing","Database queries"], ua:["Структуру сторінки","Стилі: кольори, відступи, розкладку й типографіку","Серверну маршрутизацію","Запити до бази"] }, correct:1, why:{ en:"CSS controls presentation — colors, spacing, fonts and layout — of your HTML.", ua:"CSS керує оформленням — кольори, відступи, шрифти й розкладка — твого HTML." } }] },
+      { id:"git", name:{ en:"Git & GitHub", ua:"Git & GitHub" }, tier:1, req:["html"], hours:8, desc:{ en:"Save versions & unlock free hosting later.", ua:"Зберігай версії й відкрий безкоштовний хостинг далі." },
+        res:{ ru:[{t:"Git с нуля", u:"https://www.youtube.com/watch?v=XuFaQSW79rM&t=34s"}], en:[{t:"Git from scratch", u:"https://www.youtube.com/watch?v=mAFoROnOfHs"}] },
+        quiz:[{ q:{ en:"What's a benefit of putting your landing page on GitHub?", ua:"Яка перевага розмістити лендінг на GitHub?" }, opts:{ en:["It writes CSS for you","Version history plus free hosting via GitHub Pages","It blocks visitors","It hosts nothing"], ua:["Він пише CSS за тебе","Історія версій плюс безкоштовний хостинг через GitHub Pages","Блокує відвідувачів","Нічого не хостить"] }, correct:1, why:{ en:"Git tracks versions and, via GitHub Pages, gives you free static hosting.", ua:"Git веде версії й через GitHub Pages дає безкоштовний статичний хостинг." } }] },
+      { id:"layout", name:{ en:"Layout (flex/grid)", ua:"Розкладка (flex/grid)" }, tier:2, req:["css"], hours:12, desc:{ en:"Arrange sections cleanly and predictably.", ua:"Розташовуй секції чисто й передбачувано." },
+        quiz:[{ q:{ en:"Which CSS tools are built for arranging page layout?", ua:"Які CSS-інструменти створені для розкладки сторінки?" }, opts:{ en:["Flexbox and Grid","float and clear only","JavaScript loops","SQL joins"], ua:["Flexbox і Grid","Тільки float і clear","Цикли JavaScript","SQL join'и"] }, correct:0, why:{ en:"Flexbox (1-D) and Grid (2-D) are the modern tools for laying out sections predictably.", ua:"Flexbox (1-D) і Grid (2-D) — сучасні інструменти для передбачуваної розкладки секцій." } }] },
+      { id:"js", name:{ en:"JavaScript", ua:"JavaScript" }, tier:2, req:["css"], hours:15, desc:{ en:"Add interactivity — menus, toggles, small effects.", ua:"Додай інтерактив — меню, перемикачі, невеликі ефекти." },
+        res:{ en:[{t:"Web dev course", u:"https://www.youtube.com/watch?v=zJSY8tbf_ys&list=PLWKjhJtqVAbnSe1qUNMG7AbPmjIG54u88&index=5"}] },
+        quiz:[{ q:{ en:"What is the DOM in the browser?", ua:"Що таке DOM у браузері?" }, opts:{ en:["A CSS file","A tree of objects representing the page that JS can read and change","A database","A server"], ua:["CSS-файл","Дерево об'єктів, що представляє сторінку, яке JS може читати й змінювати","База даних","Сервер"] }, correct:1, why:{ en:"The DOM is the page as a tree of objects; JavaScript manipulates it to add interactivity.", ua:"DOM — це сторінка у вигляді дерева об'єктів; JavaScript маніпулює ним, щоб додати інтерактив." } }] },
+      { id:"resp", name:{ en:"Responsive design", ua:"Адаптивний дизайн" }, tier:3, req:["layout"], hours:12, desc:{ en:"Perfect on phone, tablet and desktop.", ua:"Ідеально на телефоні, планшеті й десктопі." },
+        mentor:{ en:"Design mobile-first. Most of your visitors are on a phone — make it great there first.", ua:"Дизайн mobile-first. Більшість відвідувачів з телефона — зроби чудово спершу там." },
+        quiz:[{ q:{ en:"What does 'mobile-first' responsive design mean?", ua:"Що означає адаптивний дизайн 'mobile-first'?" }, opts:{ en:["Only build for desktop","Design for small screens first, then scale up","Ignore phones entirely","Use fixed pixel widths everywhere"], ua:["Робити лише для десктопа","Спершу дизайн під малі екрани, потім масштабувати вгору","Повністю ігнорувати телефони","Скрізь використовувати фіксовані пікселі"] }, correct:1, why:{ en:"Mobile-first means designing for phones first (most visitors), then enhancing for larger screens.", ua:"Mobile-first означає спершу дизайн під телефони (більшість відвідувачів), а потім покращувати під більші екрани." } }] },
+      { id:"polish", name:{ en:"Animations & polish", ua:"Анімації та полірування" }, tier:3, req:["js"], hours:10, desc:{ en:"Micro-interactions that make it feel premium.", ua:"Мікровзаємодії, що додають відчуття преміуму." },
+        res:{ en:[{t:"Web animations", u:"https://www.youtube.com/watch?v=DEeaT6FxEws"}] },
+        quiz:[{ q:{ en:"What are CSS transitions good for?", ua:"Для чого хороші CSS-переходи (transitions)?" }, opts:{ en:["Querying a database","Smoothly animating property changes (e.g. hover states)","Storing data","Routing pages"], ua:["Запитів до бази","Плавно анімувати зміни властивостей (напр. стани hover)","Зберігання даних","Маршрутизації сторінок"] }, correct:1, why:{ en:"CSS transitions animate property changes smoothly — great for hover effects and micro-interactions.", ua:"CSS-переходи плавно анімують зміни властивостей — чудово для hover-ефектів і мікровзаємодій." } }] },
+      { id:"deploy", name:{ en:"Deploy (GitHub Pages)", ua:"Деплой (GitHub Pages)" }, tier:4, req:["resp","git"], hours:8, desc:{ en:"Your site, live and free, on a real URL.", ua:"Твій сайт наживо й безкоштовно на справжньому URL." },
+        res:{ en:[{t:"Deploy to GitHub Pages", u:"https://www.youtube.com/watch?v=e5AwNU3Y2es"}] },
+        quiz:[{ q:{ en:"What is GitHub Pages?", ua:"Що таке GitHub Pages?" }, opts:{ en:["A paid database","Free static hosting served straight from a GitHub repo","A code editor","A CSS framework"], ua:["Платна база даних","Безкоштовний статичний хостинг прямо з GitHub-репозиторію","Редактор коду","CSS-фреймворк"] }, correct:1, why:{ en:"GitHub Pages serves static sites (HTML/CSS/JS) for free directly from your repository.", ua:"GitHub Pages безкоштовно роздає статичні сайти (HTML/CSS/JS) прямо з твого репозиторію." } }] },
+      { id:"ship", name:{ en:"🏁 Ship your landing", ua:"🏁 Запусти свій лендінг" }, tier:5, req:["deploy","polish"], hours:10, desc:{ en:"Publish it, share the link. Now make one for a client — that's $100+.", ua:"Опублікуй, поділись посиланням. Тепер зроби такий для клієнта — це $100+." } }
+    ]
+  }
+};
+
+const RANKS = [
+  { p:1.0,  name:"ARCHITECT" },
+  { p:0.75, name:"LEAD" },
+  { p:0.5,  name:"SENIOR" },
+  { p:0.25, name:"MIDDLE" },
+  { p:0.001,name:"JUNIOR" },
+  { p:0,    name:"INTERN" }
+];
+
+/* ---------- geometry ---------- */
+const CARD_W = 172, CARD_H = 52, PAD_X = 96, PAD_Y = 64, TIER_GAP = 66;
+const ROW = CARD_H + TIER_GAP;
+
+/* ---------- state ---------- */
+let currentKey = null, unlocked = new Set(), selectedId = null, quizAnswers = [];
+const LS = (k) => "skilltree_c_" + k;
+const $ = (id) => document.getElementById(id);
+function esc(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const nodesOf = (k) => CLASSES[k].nodes;
+const nodeById = (k, id) => nodesOf(k).find(n => n.id === id);
+const totalHours = (k) => nodesOf(k).reduce((s,n)=>s+n.hours,0);
+
+/* ---------- i18n ---------- */
+let lang = localStorage.getItem("skilltree_lang") || "en";
+const I18N = {
+  en: {
+    selCmd:"--select-project", selTitle:"Choose your project",
+    selSub:"Pick a path, then unlock the graph. Progress saves in your browser.",
+    skills:"skills", toMaster:"to master", foot:"built by",
+    back:"◄ projects", share:"&gt; share", reset:"&gt; reset", rank:"RANK", unlocked:"unlocked",
+    hint:'Click a node to unlock it · locked nodes need their <b>dependencies</b> first',
+    resources:"resources", quizHdr:"quiz — pass to unlock", cost:"cost",
+    takeQuiz:"&gt; take quiz to unlock", unlockBtn:"&gt; unlock", submit:"&gt; submit answers",
+    uninstall:"&gt; uninstall", requires:"requires",
+    st:{ available:"available", unlocked:"unlocked", locked:"locked", hidden:"hidden" },
+    tInstalled:"installed", tAnswerAll:"answer every question first",
+    tPassed:"\u2713 quiz passed", tWrong:"not all correct — fix the reds & resubmit",
+    tEncrypted:"\uD83D\uDD12 encrypted — complete earlier skills first",
+    tShared:"build link copied — go flex it", tReset:"progress reset",
+    confirmReset:"Reset all progress for"
+  },
+  ua: {
+    selCmd:"--вибрати-проєкт", selTitle:"Обери свій проєкт",
+    selSub:"Обери напрям і відкривай граф. Прогрес зберігається у браузері.",
+    skills:"навичок", toMaster:"до майстерності", foot:"зроблено",
+    back:"◄ проєкти", share:"&gt; поділитися", reset:"&gt; скинути", rank:"РАНГ", unlocked:"відкрито",
+    hint:'Клікни ноду, щоб відкрити · закриті ноди потребують <b>залежностей</b>',
+    resources:"ресурси", quizHdr:"квіз — пройди, щоб відкрити", cost:"час",
+    takeQuiz:"&gt; пройти квіз", unlockBtn:"&gt; відкрити", submit:"&gt; надіслати відповіді",
+    uninstall:"&gt; видалити", requires:"потрібно",
+    st:{ available:"доступно", unlocked:"відкрито", locked:"закрито", hidden:"приховано" },
+    tInstalled:"встановлено", tAnswerAll:"спочатку дай відповідь на всі питання",
+    tPassed:"\u2713 квіз пройдено", tWrong:"не всі вірні — виправ червоні й надішли ще раз",
+    tEncrypted:"\uD83D\uDD12 зашифровано — спочатку пройди попередні навички",
+    tShared:"посилання скопійовано — хвались", tReset:"прогрес скинуто",
+    confirmReset:"Скинути весь прогрес для"
+  }
+};
+const T = () => I18N[lang];
+const tr = (v) => (v && typeof v === "object" && !Array.isArray(v) && v.en !== undefined) ? (v[lang] !== undefined ? v[lang] : v.en) : v;
+function optsOf(it){ return Array.isArray(it.opts) ? it.opts : (it.opts[lang] || it.opts.en); }
+function toggleLang(){
+  lang = lang === "en" ? "ua" : "en";
+  localStorage.setItem("skilltree_lang", lang);
+  document.body.dataset.lang = lang;
+  applyI18n(); renderSelect();
+  if ($("screen-tree").classList.contains("active")){ const k = currentKey, open = selectedId; openClass(k); if (open){ const nn = nodeById(k, open); if (nn) openPanel(nn); } }
+}
+function applyI18n(){
+  const t = T();
+  document.querySelectorAll(".langtog").forEach(el =>
+    el.querySelectorAll("b[data-l]").forEach(b => b.classList.toggle("on", b.dataset.l === lang)));
+  const set = (id, v) => { const e = $(id); if (e) e.innerHTML = v; };
+  set("i18nSelCmd", t.selCmd); set("i18nSelTitle", t.selTitle); set("i18nSelSub", t.selSub);
+  set("i18nFoot", t.foot); set("hudBack", t.back); set("hudShare", t.share); set("hudReset", t.reset);
+  set("treeHint", t.hint); const cl = $("pCostLabel"); if (cl) cl.textContent = t.cost;
+}
+
+/* ---------- class select ---------- */
+function renderSelect(){
+  const t = T();
+  $("classes").innerHTML = Object.entries(CLASSES).map(([key,c]) =>
+    `<button class="ccard" onclick="openClass('${key}')">
+      <span class="ccard__path">~/${key}</span>
+      <span class="ccard__name">${esc(tr(c.name))}</span>
+      <span class="ccard__blurb">${esc(tr(c.blurb))}</span>
+      <span class="ccard__meta"><b>${c.nodes.length}</b> ${t.skills} · <b>~${totalHours(key)}h</b> ${t.toMaster}</span>
+    </button>`).join("");
+}
+
+/* ---------- layout ---------- */
+function layout(key){
+  const nodes = nodesOf(key), tiers = {};
+  nodes.forEach(n => (tiers[n.tier] = tiers[n.tier] || []).push(n));
+  const tk = Object.keys(tiers).map(Number).sort((a,b)=>a-b);
+  const maxCount = Math.max(...tk.map(t => tiers[t].length));
+  const W = Math.max(940, maxCount * 232);
+  const H = PAD_Y * 2 + (tk.length - 1) * ROW + CARD_H;
+  tk.forEach((t, ti) => {
+    const row = tiers[t];
+    row.forEach((n, i) => {
+      n._x = PAD_X + (i + 1) * (W - PAD_X * 2) / (row.length + 1);
+      n._y = PAD_Y + ti * ROW;   // top of card
+    });
+  });
+  return { W, H };
+}
+
+/* ---------- open a class ---------- */
+function openClass(key){
+  currentKey = key;
+  const params = new URLSearchParams(location.search);
+  let ids = [];
+  if (params.get("c") === key && params.get("b") !== null){
+    ids = params.get("b").split(".").filter(Boolean);
+    history.replaceState(null, "", location.pathname);
+  } else {
+    try { ids = JSON.parse(localStorage.getItem(LS(key)) || "[]"); } catch(e){ ids = []; }
+  }
+  unlocked = new Set(ids.filter(id => nodeById(key, id)));
+  sanitize(); save();
+
+  const { W, H } = layout(key);
+  const canvas = $("canvas");
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+  const svg = $("traces");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+
+  // edges: orthogonal (down → across → down)
+  let edges = "";
+  nodesOf(key).forEach(n => {
+    const cx = n._x, cyT = n._y;                 // child top-center
+    n.req.forEach(rid => {
+      const r = nodeById(key, rid); if (!r) return;
+      const px = r._x, pyB = r._y + CARD_H;       // parent bottom-center
+      const midY = (pyB + cyT) / 2;
+      const d = `M ${px} ${pyB} L ${px} ${midY} L ${cx} ${midY} L ${cx} ${cyT}`;
+      edges += `<path class="trace" data-a="${rid}" data-b="${n.id}" d="${d}"/>`;
+    });
+  });
+  $("edges").innerHTML = edges;
+
+  // nodes as cards
+  $("nodes").innerHTML = nodesOf(key).map(n =>
+    `<button class="card" data-id="${n.id}" style="left:${n._x}px;top:${n._y}px" onclick="clickNode('${n.id}')">
+      <span class="tag"></span>
+      <span class="nm">${esc(tr(n.name))}</span>
+      <span class="hrs">~${n.hours}h</span>
+    </button>`).join("");
+
+  $("hudPath").textContent = "~/" + key;
+  showScreen("tree");
+  closePanel();
+  updateStates();
+}
+
+/* ---------- logic (fog of war: hidden → locked → available → completed) ---------- */
+const prereqsDone = (n) => n.req.every(r => unlocked.has(r));
+const isRevealed  = (n) => n.tier === 0 || n.req.some(r => unlocked.has(r));
+const isAvailable = (key, n) => isRevealed(n) && prereqsDone(n) && !unlocked.has(n.id);
+function stateOf(n){
+  if (unlocked.has(n.id)) return "completed";
+  if (!isRevealed(n)) return "hidden";
+  return prereqsDone(n) ? "available" : "locked";
+}
+function sanitize(){
+  let changed = true;
+  while (changed){ changed = false;
+    for (const n of nodesOf(currentKey))
+      if (unlocked.has(n.id) && !prereqsDone(n)){ unlocked.delete(n.id); changed = true; }
+  }
+}
+function dependents(id){
+  const out = new Set(); let f = [id];
+  while (f.length){ const cur = f.pop();
+    for (const n of nodesOf(currentKey)) if (n.req.includes(cur) && !out.has(n.id)){ out.add(n.id); f.push(n.id); }
+  }
+  return out;
+}
+function clickNode(id){
+  const n = nodeById(currentKey, id), st = stateOf(n);
+  if (st === "hidden"){ toast(T().tEncrypted); return; }
+  selectedId = id;
+  if (st === "locked"){
+    const el = document.querySelector(`.card[data-id="${id}"]`);
+    if (el){ el.classList.add("shake"); setTimeout(()=>el.classList.remove("shake"),400); }
+  }
+  openPanel(n);
+}
+function doUnlock(id){                         // complete a node
+  const n = nodeById(currentKey, id);
+  if (unlocked.has(id) || !(isRevealed(n) && prereqsDone(n))) return;
+  unlocked.add(id); save(); updateStates(); openPanel(n);
+  const el = document.querySelector(`.card[data-id="${id}"]`);
+  if (el){ el.classList.add("flash"); setTimeout(()=>el.classList.remove("flash"),500); }
+  toast(T().tInstalled + `: <b>${esc(tr(n.name))}</b>`);
+}
+function doLock(id){
+  if (!unlocked.has(id)) return;
+  unlocked.delete(id); dependents(id).forEach(d => unlocked.delete(d));
+  save(); updateStates(); openPanel(nodeById(currentKey, id));
+}
+function updateStates(){
+  const key = currentKey;
+  nodesOf(key).forEach(n => {
+    const el = document.querySelector(`.card[data-id="${n.id}"]`); if (!el) return;
+    const st = stateOf(n);
+    el.classList.remove("hidden","locked","available","unlocked","selected");
+    el.classList.add(st === "completed" ? "unlocked" : st);
+    if (n.id === selectedId) el.classList.add("selected");
+  });
+  document.querySelectorAll(".trace").forEach(e =>
+    e.classList.toggle("lit", unlocked.has(e.dataset.a) && unlocked.has(e.dataset.b)));
+  const total = nodesOf(key).length, got = unlocked.size, pct = total ? got/total : 0;
+  const hoursGot = nodesOf(key).filter(n => unlocked.has(n.id)).reduce((s,n)=>s+n.hours,0);
+  $("hudRank").textContent = T().rank + ": " + RANKS.find(r => pct >= r.p).name;
+  $("hudBar").style.width = (pct*100) + "%";
+  $("hudPct").textContent = Math.round(pct*100) + "%";
+  $("hudSkills").innerHTML = `<b>${got}</b>/${total} ${T().unlocked}`;
+  $("hudHours").innerHTML = `<b>${hoursGot}</b>/${totalHours(key)}h`;
+}
+
+/* ---------- panel ---------- */
+function openPanel(n){
+  selectedId = n.id;
+  const st = stateOf(n), label = st === "completed" ? "unlocked" : st;
+  $("pTitle").textContent = tr(n.name);
+  const b = $("pBadge"); b.textContent = T().st[label] || label; b.className = "panel__badge b-" + label;
+  $("pDesc").textContent = tr(n.desc);
+  $("pCost").textContent = "~" + n.hours + "h";
+  const m = $("pMentor");
+  if (n.mentor){ m.textContent = tr(n.mentor); m.style.display = ""; } else m.style.display = "none";
+  const rEl = $("pRes"), en = (n.res && n.res.en) || [], ru = (n.res && n.res.ru) || [];
+  if (en.length || ru.length){
+    let h = '<div class="res-h">' + T().resources + '</div>';
+    en.forEach(r => h += `<a href="${r.u}" target="_blank" rel="noopener"><span class="lang">EN</span>${esc(r.t)} \u2197</a>`);
+    ru.forEach(r => h += `<a href="${r.u}" target="_blank" rel="noopener"><span class="lang">RU</span>${esc(r.t)} \u2197</a>`);
+    rEl.innerHTML = h; rEl.style.display = "";
+  } else rEl.style.display = "none";
+  const pq = $("pQuiz"); pq.style.display = "none"; pq.innerHTML = "";
+  const a = $("pActions");
+  if (st === "completed") a.innerHTML = `<button class="act act--lock" onclick="doLock('${n.id}')">${T().uninstall}</button>`;
+  else if (st === "available"){
+    if (n.quiz && n.quiz.length) a.innerHTML = `<button class="act act--unlock" onclick="startQuiz('${n.id}')">${T().takeQuiz}</button>`;
+    else a.innerHTML = `<button class="act act--unlock" onclick="doUnlock('${n.id}')">${T().unlockBtn} (${n.hours}h)</button>`;
+  }
+  else { const need = n.req.filter(r => !unlocked.has(r)).map(r => tr(nodeById(currentKey, r).name)).join(", ");
+    a.innerHTML = `<button class="act act--disabled" disabled>${T().requires}: ${esc(need)}</button>`; }
+  $("panel").classList.add("show");
+  updateStates();
+}
+function closePanel(){ $("panel").classList.remove("show"); selectedId = null; updateStates(); }
+
+/* ---------- quiz gate ---------- */
+function startQuiz(id){
+  const n = nodeById(currentKey, id);
+  if (!n.quiz || !n.quiz.length){ doUnlock(id); return; }
+  quizAnswers = new Array(n.quiz.length).fill(-1);
+  const pq = $("pQuiz");
+  pq.style.display = "";
+  pq.innerHTML = '<div class="quiz-h">' + T().quizHdr + '</div>' + n.quiz.map((it, qi) =>
+    `<div class="quiz-q" data-qi="${qi}">
+      <div class="quiz-qt">${qi+1}. ${esc(tr(it.q))}</div>
+      <div class="quiz-opts">${optsOf(it).map((o,oi)=>
+        `<button class="quiz-opt" data-qi="${qi}" data-oi="${oi}" onclick="pickAnswer(${qi},${oi})">${esc(o)}</button>`).join("")}</div>
+      <div class="quiz-why" style="display:none">${it.why ? esc(tr(it.why)) : ""}</div>
+    </div>`).join("");
+  $("pActions").innerHTML = `<button class="act act--unlock" onclick="submitQuiz('${id}')">${T().submit}</button>`;
+}
+function pickAnswer(qi, oi){
+  quizAnswers[qi] = oi;
+  document.querySelectorAll(`.quiz-opt[data-qi="${qi}"]`).forEach(b => {
+    b.classList.remove("right","wrong");
+    b.classList.toggle("sel", +b.dataset.oi === oi);
+  });
+}
+function submitQuiz(id){
+  const n = nodeById(currentKey, id);
+  if (quizAnswers.includes(-1)){ toast(T().tAnswerAll); return; }
+  let allRight = true;
+  n.quiz.forEach((it, qi) => {
+    const chosen = quizAnswers[qi];
+    if (chosen !== it.correct) allRight = false;
+    document.querySelectorAll(`.quiz-opt[data-qi="${qi}"]`).forEach(b => {
+      const oi = +b.dataset.oi; b.classList.remove("sel","right","wrong");
+      if (oi === it.correct) b.classList.add("right");
+      else if (oi === chosen) b.classList.add("wrong");
+    });
+    const w = document.querySelector(`.quiz-q[data-qi="${qi}"] .quiz-why`);
+    if (w && it.why) w.style.display = "";
+  });
+  if (allRight){ toast(T().tPassed); doUnlock(id); }
+  else toast(T().tWrong);
+}
+
+/* ---------- persistence + share ---------- */
+function save(){ if (currentKey) localStorage.setItem(LS(currentKey), JSON.stringify([...unlocked])); }
+function resetClass(){
+  if (!confirm(T().confirmReset + " " + tr(CLASSES[currentKey].name) + "?")) return;
+  unlocked = new Set(); save(); closePanel(); updateStates(); toast(T().tReset);
+}
+function shareBuild(){
+  const url = location.origin + location.pathname + "?c=" + currentKey + "&b=" + [...unlocked].join(".");
+  const done = () => toast(T().tShared);
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done).catch(()=>prompt("Copy your build link:", url));
+  else prompt("Copy your build link:", url);
+}
+
+/* ---------- screens + toast ---------- */
+function showScreen(which){
+  $("screen-select").classList.toggle("active", which === "select");
+  $("screen-tree").classList.toggle("active", which === "tree");
+  window.scrollTo({ top: 0 });
+}
+function backToSelect(){ closePanel(); showScreen("select"); }
+let toastT;
+function toast(msg){ const t = $("toast"); t.innerHTML = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove("show"), 2200); }
+
+/* ---------- boot ---------- */
+document.body.dataset.lang = lang;
+applyI18n();
+renderSelect();
+(function(){ const c = new URLSearchParams(location.search).get("c"); if (c && CLASSES[c]) openClass(c); })();
+setTimeout(function(){ var t = document.getElementById("tvon"); if (t) t.classList.add("done"); }, 1650);
+</script>
+</body>
+</html>
