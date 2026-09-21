@@ -1,6 +1,8 @@
 # Developer Skill Tree
 
-An interactive, bilingual skill-tree for developers. Choose a path, unlock topics by completing short quizzes, keep progress in the browser, and share a build with a link.
+An interactive, bilingual skill tree for developers. Choose a path, unlock topics with short quizzes, keep progress in the browser, and share a build with a link.
+
+**[Open the live demo →](https://dev-skill-tree.pages.dev/)**
 
 The project is intentionally lightweight: the complete experience currently lives in a single HTML file and runs without a framework or build step.
 
@@ -15,16 +17,9 @@ The project is intentionally lightweight: the complete experience currently live
 
 ## Run locally
 
-No installation is required.
-
 ```bash
 git clone https://github.com/Barik766/dev-skill-tree.git
 cd dev-skill-tree/skill-tree
-```
-
-Open `index.html` directly, or serve the folder locally:
-
-```bash
 python -m http.server 8000
 ```
 
@@ -40,20 +35,17 @@ dev-skill-tree/
 
 ## Deployment
 
-GitHub Pages cannot publish this repository correctly from the current nested folder using the standard branch settings. Use one of these options:
+The production build is hosted on Cloudflare Pages:
 
-1. Move `skill-tree/index.html` to the repository root and publish from `main / (root)`.
-2. Move the site into a `docs/` directory and publish from `main /docs`.
-3. Add a GitHub Actions workflow that uploads `skill-tree/` as the Pages artifact.
-
-After deployment, add the live URL to the repository's **About** section.
+- **Live:** https://dev-skill-tree.pages.dev/
+- Deploy the `skill-tree/` directory as the site output.
 
 ## Suggested next steps
 
 - Extract content data from the HTML into JSON modules
 - Add keyboard navigation and visible focus styles
-- Add automated HTML/accessibility checks in GitHub Actions
-- Add a social preview image and screenshots to this README
+- Add automated HTML/accessibility checks
+- Add a social preview image and screenshots
 - Document how new paths, topics, and quiz questions are added
 
 ## License
